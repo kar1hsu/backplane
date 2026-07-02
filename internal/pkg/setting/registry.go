@@ -37,7 +37,7 @@ var registry = []definition{
 	{Group: "安全", Key: "security.login_lock_minutes", Name: "锁定时长(分钟)", Type: "int", Value: "15"},
 	{Group: "安全", Key: "security.password_min_length", Name: "密码最小长度", Type: "int", Value: "6"},
 
-	{Group: "日志", Key: "log.operation_retain_days", Name: "操作日志保留天数", Type: "int", Value: "30", Remark: "留存清理任务读取此值"},
+	{Group: "日志", Key: "log.operation_retain_days", Name: "操作日志保留天数", Type: "int", Value: "30", Remark: "留存清理任务读取此值，0 表示不清理"},
 }
 
 // defaultValue returns the compiled-in default for key, or "" if unknown.

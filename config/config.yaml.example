@@ -46,7 +46,7 @@ task:
 log:
   level: info       # debug | info | warn | error
   format: console   # console | json
-  directory: logs
-  max_size: 100     # MB
-  max_backups: 10
-  max_age: 30       # days
+  directory: logs    # 文件日志目录；当前文件为 app.log
+  max_size: 100      # MB，达到大小后轮转，不按天主动切分
+  max_backups: 10    # 保留旧日志文件数量
+  max_age: 30        # days，文件日志旧文件最长保留天数；0 表示不按天数清理。数据库操作日志由系统配置 log.operation_retain_days 控制

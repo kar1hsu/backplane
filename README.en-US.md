@@ -205,15 +205,6 @@ frame/
 | PUT | /admin/apis/:id | Update API | JWT + RBAC |
 | DELETE | /admin/apis/:id | Delete API | JWT + RBAC |
 
-### Operation Log
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| GET | /admin/operation-logs | Log list (filter by operator / module / result / time range / keyword) | JWT + RBAC |
-| GET | /admin/operation-logs/:id | Log detail | JWT + RBAC |
-| DELETE | /admin/operation-logs/:id | Delete one | JWT + RBAC |
-| DELETE | /admin/operation-logs | Clear all | JWT + RBAC |
-
 ### System Config
 
 | Method | Path | Description | Auth |
@@ -224,6 +215,15 @@ frame/
 | DELETE | /admin/configs/:id | Delete (built-ins protected) | JWT + RBAC |
 | POST | /admin/configs/refresh | Refresh cache (`?key=` for one, otherwise all) | JWT + RBAC |
 | GET | /api/configs/public | Public config key→value (no auth, for the login page / app bootstrap) | none |
+
+### Operation Log
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| GET | /admin/operation-logs | Log list (filter by operator / module / result / time range / keyword) | JWT + RBAC |
+| GET | /admin/operation-logs/:id | Log detail | JWT + RBAC |
+| DELETE | /admin/operation-logs/:id | Delete one | JWT + RBAC |
+| DELETE | /admin/operation-logs | Clear all | JWT + RBAC |
 
 ## Permission System
 
@@ -404,6 +404,14 @@ GET /api/configs/public  →  { "code":0, "data": { "site.name":"...", "site.log
 
 Under **System → System Config**: grouped into tabs, each value rendered by its type. **Save** submits changes in a batch and refreshes the cache; each row can be **refreshed individually**, and the top-right button **refreshes the whole cache**. Non-built-in entries can be deleted.
 
+## System Runtime Logs (File Logs)
+
+Zap logs are written to both stdout and a file. File logs are managed by Lumberjack and default to `logs/app.log`. They are not split by day proactively; instead, the active file is rotated when it reaches `log.max_size`, old files get timestamped names and gzip compression, `log.max_backups` limits how many old files are kept, and `log.max_age` limits how many days old files are retained (`0` disables age-based cleanup).
+
+`log.max_age` only affects runtime file logs. It does not affect the database-backed operation audit log; DB operation-log retention is controlled separately by the system config key `log.operation_retain_days`.
+
+In Docker deployments, `server`, `worker`, and `scheduler` all mount `/app/logs` to the same `app_logs` volume, so their file logs share that volume. Their stdout is also captured by Docker's logging driver. If you need separate process log files, configure different log directories per process or inspect each container's stdout.
+
 ## Operation Log (Audit)
 
 Every write (POST/PUT/DELETE/PATCH) is recorded to the database and searchable from the admin UI. This is a **queryable audit trail in the DB**, distinct from the Zap file logs used for ops/debugging — the two coexist.
@@ -412,16 +420,16 @@ Every write (POST/PUT/DELETE/PATCH) is recorded to the database and searchable f
 
 - **Auto-captured by middleware** — `middleware.OperationLog()` sits between auth and RBAC, so even denied (403) attempts leave a trace.
 - **Reuses sys_api** — matches `method + route` against `sys_api` to fill the module/action names automatically; no extra mapping to maintain.
-- **Redacts & truncates** — sensitive request-body fields (`password`, `token`, …) are stored as `***`; oversized bodies are truncated (default 8 KB).
+- **Redacts & truncates** — sensitive JSON fields in requests/responses (`password`, `token`, …) are stored as `***`; request bodies are capped at 8 KB, and response bodies over 8 KB store a truncation notice instead of the full payload.
 - **Success detection** — parses the response business code (0 = success) plus the HTTP status.
 - **Best-effort** — written synchronously, but a logging failure only goes to Zap and never affects the main request.
 - **Login audit** — login (including failures, with the attempted username) and logout are folded into the operation log under the "Auth" module.
 
-Recorded fields include: operator & role snapshot, module/action, method/route/path, target ID, request params, HTTP status / business code / success, error message, IP/UA, and latency.
+Recorded fields include: operator & role snapshot, module/action, method/route/path, target ID, request params, response params, HTTP status / business code / success, error message, IP/UA, and latency.
 
 ### Retention
 
-Retention days come from the `log.operation_retain_days` config (default 30). `OperationLogRepo.DeleteBefore(t)` provides a hard delete by time, which you can wire to a Scheduler cron for periodic cleanup (not enabled by default).
+Retention days come from the `log.operation_retain_days` config (default 30). It only affects the `sys_operation_log` table, not runtime file logs such as `logs/app.log`. Every day at 02:00, the Scheduler enqueues `system:cleanup`; a Worker consumes it and calls `OperationLogRepo.DeleteBefore(t)` for a hard delete by time. Values `0` or below disable cleanup. Scheduled cleanup requires both `cmd/scheduler` and `cmd/worker` to be running; the Web server alone does not execute cleanup jobs.
 
 ## Task System (Queue + Cron)
 

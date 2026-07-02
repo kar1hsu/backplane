@@ -206,15 +206,6 @@ frame/
 | PUT | /admin/apis/:id | 更新 API | JWT + RBAC |
 | DELETE | /admin/apis/:id | 删除 API | JWT + RBAC |
 
-### 操作日志
-
-| 方法 | 路径 | 说明 | 鉴权 |
-|------|------|------|------|
-| GET | /admin/operation-logs | 操作日志列表（按操作人/模块/成败/时间段/关键字过滤） | JWT + RBAC |
-| GET | /admin/operation-logs/:id | 日志详情 | JWT + RBAC |
-| DELETE | /admin/operation-logs/:id | 删除单条 | JWT + RBAC |
-| DELETE | /admin/operation-logs | 清空日志 | JWT + RBAC |
-
 ### 系统配置
 
 | 方法 | 路径 | 说明 | 鉴权 |
@@ -225,6 +216,15 @@ frame/
 | DELETE | /admin/configs/:id | 删除配置（内置不可删） | JWT + RBAC |
 | POST | /admin/configs/refresh | 刷新缓存（`?key=` 单个，否则全部） | JWT + RBAC |
 | GET | /api/configs/public | 公开配置 key→value（免鉴权，供登录页/前端启动） | 无 |
+
+### 操作日志
+
+| 方法 | 路径 | 说明 | 鉴权 |
+|------|------|------|------|
+| GET | /admin/operation-logs | 操作日志列表（按操作人/模块/成败/时间段/关键字过滤） | JWT + RBAC |
+| GET | /admin/operation-logs/:id | 日志详情 | JWT + RBAC |
+| DELETE | /admin/operation-logs/:id | 删除单条 | JWT + RBAC |
+| DELETE | /admin/operation-logs | 清空日志 | JWT + RBAC |
 
 ## 权限系统
 
@@ -421,6 +421,14 @@ GET /api/configs/public  →  { "code":0, "data": { "site.name":"...", "site.log
 
 「系统管理 → 系统配置」：按分组 Tab 展示、按类型渲染控件；**保存**批量提交并自动刷新缓存；每项可**单独刷新缓存**，右上角可**一键刷新全部缓存**；非内置项可删除。完整接口见上文 [API 概览 · 系统配置](#系统配置)。
 
+## 系统运行日志（文件日志）
+
+Zap 日志同时写入 stdout 和文件。文件日志由 Lumberjack 管理，默认写入 `logs/app.log`，不是按天主动新建文件，而是达到 `log.max_size` 后轮转为带时间戳的旧文件并 gzip 压缩；`log.max_backups` 控制保留的旧文件数量，`log.max_age` 控制旧文件最长保留天数（`0` 表示不按天数清理旧文件）。
+
+`log.max_age` 只影响运行文件日志，不影响数据库中的操作审计日志；数据库操作日志的留存由系统配置 `log.operation_retain_days` 单独控制。
+
+Docker 部署时，`server` / `worker` / `scheduler` 都把 `/app/logs` 挂到同一个 `app_logs` volume，因此三个进程的文件日志会写到同一个卷里；同时容器 stdout 也会被 Docker 自身日志驱动采集。需要区分进程日志时，建议给不同进程配置不同的日志目录或查看各自容器 stdout。
+
 ## 操作日志（审计）
 
 自动把所有写操作（POST/PUT/DELETE/PATCH）记入数据库，后台可检索。与 Zap 文件日志（运维排障）不同，这是**入库、可查询的审计轨迹**，两者并存。
@@ -429,16 +437,16 @@ GET /api/configs/public  →  { "code":0, "data": { "site.name":"...", "site.log
 
 - **中间件自动采集** —— `middleware.OperationLog()` 挂在管理路由上，位于鉴权与 RBAC 之间（被拒的 403 也会留痕）。
 - **复用 sys_api** —— 用「请求方法 + 路由」匹配 `sys_api` 的分组/描述，自动填模块名与操作名，无需额外维护映射。
-- **脱敏 + 截断** —— 请求体中 `password`/`token` 等敏感字段记为 `***`，超长截断（默认 8KB）。
+- **脱敏 + 截断** —— 请求/响应 JSON 中 `password`/`token` 等敏感字段记为 `***`；请求体最多记录 8KB，响应体超过 8KB 时跳过完整内容，仅记录已截断提示。
 - **判定成败** —— 解析响应业务码（0 为成功）+ HTTP 状态。
 - **best-effort** —— 同步写入，但落库失败只记 Zap、不影响主请求。
 - **登录审计** —— 登录（含失败，记下尝试的用户名）、登出并入操作日志（模块「认证」）。
 
-记录字段包含：操作人/角色快照、模块/操作、方法/路由/路径、目标 ID、请求参数、HTTP 状态/业务码/成败、错误信息、IP/UA、耗时。
+记录字段包含：操作人/角色快照、模块/操作、方法/路由/路径、目标 ID、请求参数、响应参数、HTTP 状态/业务码/成败、错误信息、IP/UA、耗时。
 
 ### 留存清理
 
-保留天数由系统配置 `log.operation_retain_days`（默认 30 天）控制；`OperationLogRepo.DeleteBefore(t)` 提供按时间硬删，可在 Scheduler 注册一个 cron 调用它实现定时清理（默认未内置启用）。
+保留天数由系统配置 `log.operation_retain_days`（默认 30 天）控制；它只影响 `sys_operation_log` 表，不影响 `logs/app.log` 等运行文件日志。每天凌晨 2 点由 Scheduler 投递 `system:cleanup`，Worker 消费后调用 `OperationLogRepo.DeleteBefore(t)` 按时间硬删。配置值 `0` 或负数表示不清理。定时清理需要同时运行 `cmd/scheduler` 和 `cmd/worker`；只运行 Web 服务不会执行清理任务。
 
 ## 任务系统（消息队列 + 定时任务）
 
