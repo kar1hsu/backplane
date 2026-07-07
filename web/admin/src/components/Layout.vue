@@ -110,12 +110,16 @@ async function handleCommand(command: string) {
   height: 100vh;
 }
 .layout-aside {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   background-color: #001529;
   transition: width 0.3s;
   overflow: hidden;
 }
 .logo {
   height: 60px;
+  flex: 0 0 60px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -129,7 +133,21 @@ async function handleCommand(command: string) {
   white-space: nowrap;
 }
 .aside-menu {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   border-right: none;
+}
+.aside-menu::-webkit-scrollbar {
+  width: 6px;
+}
+.aside-menu::-webkit-scrollbar-thumb {
+  background: #ffffff24;
+  border-radius: 999px;
+}
+.aside-menu::-webkit-scrollbar-track {
+  background: transparent;
 }
 .layout-header {
   display: flex;
