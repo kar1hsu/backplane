@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/kar1hsu/frame/internal/model"
+	"github.com/kar1hsu/backplane/internal/model"
 )
 
 type OperationLogRepo struct {

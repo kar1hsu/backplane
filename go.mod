@@ -1,4 +1,4 @@
-module github.com/kar1hsu/frame
+module github.com/kar1hsu/backplane
 
 go 1.25.0
 

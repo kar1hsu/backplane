@@ -96,7 +96,7 @@ var Cfg Config
 
 // defaultJWTSecret is the placeholder secret shipped in config.yaml.example.
 // It must never be used in production.
-const defaultJWTSecret = "frame-jwt-secret-key-change-in-production"
+const defaultJWTSecret = "backplane-jwt-secret-key-change-in-production"
 
 func InitConfig(cfgFile string) error {
 	if cfgFile != "" {

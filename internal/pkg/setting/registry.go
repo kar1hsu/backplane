@@ -3,8 +3,8 @@ package setting
 import (
 	"context"
 
-	"github.com/kar1hsu/frame/internal/model"
-	"github.com/kar1hsu/frame/internal/repository"
+	"github.com/kar1hsu/backplane/internal/model"
+	"github.com/kar1hsu/backplane/internal/repository"
 )
 
 // definition is a known config: its default value, type and metadata. The
@@ -24,7 +24,7 @@ type definition struct {
 // registry lists the built-in configs. Add new tunables here; they are seeded on
 // next startup (idempotently) and editable from the admin UI afterwards.
 var registry = []definition{
-	{Group: "站点", Key: "site.name", Name: "站点名称", Type: "string", Value: "Frame Admin", IsPublic: true, Remark: "登录页 / 浏览器标题"},
+	{Group: "站点", Key: "site.name", Name: "站点名称", Type: "string", Value: "Backplane Admin", IsPublic: true, Remark: "登录页 / 浏览器标题"},
 	{Group: "站点", Key: "site.logo", Name: "站点 Logo", Type: "string", Value: "", IsPublic: true, Remark: "Logo 图片 URL"},
 	{Group: "站点", Key: "site.description", Name: "站点描述", Type: "text", Value: "后台管理系统", IsPublic: true},
 	{Group: "站点", Key: "site.copyright", Name: "版权信息", Type: "string", Value: "", IsPublic: true},

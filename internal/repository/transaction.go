@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/kar1hsu/frame/internal/app"
+	"github.com/kar1hsu/backplane/internal/app"
 	"gorm.io/gorm"
 )
 

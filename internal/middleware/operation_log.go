@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/kar1hsu/frame/internal/app"
-	"github.com/kar1hsu/frame/internal/model"
-	"github.com/kar1hsu/frame/internal/repository"
+	"github.com/kar1hsu/backplane/internal/app"
+	"github.com/kar1hsu/backplane/internal/model"
+	"github.com/kar1hsu/backplane/internal/repository"
 )
 
 // maxBodyCapture caps how many request/response bytes are stored per log entry,

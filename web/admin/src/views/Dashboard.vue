@@ -27,7 +27,7 @@
       </el-col>
     </el-row>
     <el-card>
-      <template #header>欢迎使用 Frame Admin</template>
+      <template #header>欢迎使用 Backplane Admin</template>
       <p>这是一个基于 <strong>Go (Gin + GORM + Casbin)</strong> 和 <strong>Vue 3 (Element Plus)</strong> 构建的后台管理框架。</p>
       <p>主要功能包括：</p>
       <ul>

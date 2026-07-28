@@ -15,7 +15,7 @@ database:
   port: 3306
   username: root
   password: root
-  dbname: frame
+  dbname: backplane
   charset: utf8mb4
   max_idle_conns: 10
   max_open_conns: 100
@@ -26,12 +26,12 @@ redis:
   port: 6379
   password: ""
   db: 0
-  key_prefix: "frame:"   # Redis key 全局前缀，避免多项目 key 冲突
+  key_prefix: "backplane:"   # Redis key 全局前缀，避免多项目 key 冲突
 
 jwt:
-  secret: frame-jwt-secret-key-change-in-production
+  secret: backplane-jwt-secret-key-change-in-production
   expire: 7200    # token 过期时间（秒）
-  issuer: frame
+  issuer: backplane
 
 casbin:
   model_path: config/rbac_model.conf

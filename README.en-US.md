@@ -1,8 +1,8 @@
-# Frame — A Modular Go Admin Framework
+# Backplane — A Modular Go Admin Framework
 
 English | [简体中文](README.md)
 
-Frame is a modular admin/back-office framework for Go. It pairs a **Gin + GORM + Casbin + JWT** backend with a **Vue 3 + Element Plus** panel compiled straight into the binary — a single `go build` ships the whole app. Out of the box: **button-level RBAC** with auto-generated Casbin policies, a **DB-backed operation/audit log**, **runtime system config** (DB as source of truth, Redis-cached, instant multi-instance updates), and an **Asynq distributed task queue** with cron.
+Backplane is a modular admin/back-office framework for Go. It pairs a **Gin + GORM + Casbin + JWT** backend with a **Vue 3 + Element Plus** panel compiled straight into the binary — a single `go build` ships the whole app. Out of the box: **button-level RBAC** with auto-generated Casbin policies, a **DB-backed operation/audit log**, **runtime system config** (DB as source of truth, Redis-cached, instant multi-instance updates), and an **Asynq distributed task queue** with cron.
 
 ## Tech Stack
 
@@ -49,8 +49,8 @@ Frame is a modular admin/back-office framework for Go. It pairs a **Gin + GORM +
 ### 1. Clone
 
 ```bash
-git clone <repo-url> frame
-cd frame
+git clone git@github.com:kar1hsu/backplane.git
+cd backplane
 ```
 
 ### 2. Configure
@@ -109,7 +109,7 @@ Notes:
 ## Project Structure
 
 ```
-frame/
+backplane/
 ├── cmd/
 │   ├── server/main.go          # Web server entrypoint (producer)
 │   ├── worker/main.go          # Worker entrypoint (consumer, multi-instance)
@@ -289,10 +289,10 @@ Configured in `config.yaml` so multiple projects can share one Redis instance:
 
 ```yaml
 redis:
-  key_prefix: "frame:"
+  key_prefix: "backplane:"
 ```
 
-Stored keys look like `frame:token:blacklist:eyJhb...`, `frame:perm:user:1`.
+Stored keys look like `backplane:token:blacklist:eyJhb...`, `backplane:perm:user:1`.
 
 #### Built-in caches
 
@@ -328,7 +328,7 @@ Unlike `config/config.yaml` (**infrastructure** config: database, Redis, JWT sec
 ### High availability
 
 ```text
-Startup:  DB(sys_config) ──load──▶ Redis hash(frame:config) warm-up
+Startup:  DB(sys_config) ──load──▶ Redis hash(backplane:config) warm-up
 Read:     setting.GetXxx() ─▶ Redis hit ─▶ miss → query DB & backfill ─▶ still missing → compiled-in default
 Write:    admin save ─▶ write DB (source of truth) ─▶ write-through Redis
 Cluster:  all instances share one Redis cache → consistent, no pub/sub needed
@@ -344,7 +344,7 @@ Degrade:  Redis down → read DB directly;  DB/key missing → registry default 
 Use the typed accessors in `internal/pkg/setting` — zero boilerplate (the Redis → DB → default fallback is handled internally):
 
 ```go
-import "github.com/kar1hsu/frame/internal/pkg/setting"
+import "github.com/kar1hsu/backplane/internal/pkg/setting"
 
 siteName := setting.GetString("site.name")                  // string
 allowReg := setting.GetBool("user.allow_register")          // bool ("true"/"1" → true)
@@ -360,7 +360,7 @@ Add one line to `registry` in `internal/pkg/setting/registry.go`. It is both the
 ```go
 var registry = []definition{
     // Group (frontend tab), Key (unique), Name (label), Type, Value (default), IsPublic
-    {Group: "Site", Key: "site.name", Name: "Site Name", Type: "string", Value: "Frame Admin", IsPublic: true},
+    {Group: "Site", Key: "site.name", Name: "Site Name", Type: "string", Value: "Backplane Admin", IsPublic: true},
     {Group: "Mail", Key: "mail.smtp_host", Name: "SMTP Host", Type: "string", Value: ""}, // ← new
 }
 ```
@@ -554,7 +554,7 @@ Register it in `main.go`:
 
 ```go
 router := server.NewRouter(
-    frame.AdminDist,
+    backplane.AdminDist,
     admin.New(),
     api.New(),
     yourmodule.New(), // new module

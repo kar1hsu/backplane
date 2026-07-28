@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/kar1hsu/frame/internal/app"
-	"github.com/kar1hsu/frame/internal/middleware"
-	"github.com/kar1hsu/frame/internal/pkg/response"
+	"github.com/kar1hsu/backplane/internal/app"
+	"github.com/kar1hsu/backplane/internal/middleware"
+	"github.com/kar1hsu/backplane/internal/pkg/response"
 )
 
 type Module interface {

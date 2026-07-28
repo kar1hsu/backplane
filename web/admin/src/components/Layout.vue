@@ -3,7 +3,7 @@
     <el-aside :width="isCollapse ? '64px' : '220px'" class="layout-aside">
       <div class="logo">
         <el-icon :size="24"><Monitor /></el-icon>
-        <span v-show="!isCollapse" class="logo-text">Frame Admin</span>
+        <span v-show="!isCollapse" class="logo-text">Backplane Admin</span>
       </div>
       <el-menu
         :default-active="route.path"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/kar1hsu/frame/internal/model"
-	"github.com/kar1hsu/frame/internal/repository"
+	"github.com/kar1hsu/backplane/internal/model"
+	"github.com/kar1hsu/backplane/internal/repository"
 )
 
 type MenuService struct {

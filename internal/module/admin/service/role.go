@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/kar1hsu/frame/internal/app"
-	"github.com/kar1hsu/frame/internal/model"
-	"github.com/kar1hsu/frame/internal/pkg/cache"
-	"github.com/kar1hsu/frame/internal/repository"
+	"github.com/kar1hsu/backplane/internal/app"
+	"github.com/kar1hsu/backplane/internal/model"
+	"github.com/kar1hsu/backplane/internal/pkg/cache"
+	"github.com/kar1hsu/backplane/internal/repository"
 	"gorm.io/gorm"
 )
 

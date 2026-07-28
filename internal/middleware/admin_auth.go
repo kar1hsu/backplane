@@ -4,10 +4,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/kar1hsu/frame/internal/pkg/cache"
-	jwtpkg "github.com/kar1hsu/frame/internal/pkg/jwt"
-	"github.com/kar1hsu/frame/internal/pkg/response"
-	"github.com/kar1hsu/frame/internal/repository"
+	"github.com/kar1hsu/backplane/internal/pkg/cache"
+	jwtpkg "github.com/kar1hsu/backplane/internal/pkg/jwt"
+	"github.com/kar1hsu/backplane/internal/pkg/response"
+	"github.com/kar1hsu/backplane/internal/repository"
 )
 
 const (

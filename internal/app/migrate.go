@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/kar1hsu/frame/internal/model"
-	"github.com/kar1hsu/frame/internal/pkg/utils"
+	"github.com/kar1hsu/backplane/internal/model"
+	"github.com/kar1hsu/backplane/internal/pkg/utils"
 	"gorm.io/gorm"
 )
 

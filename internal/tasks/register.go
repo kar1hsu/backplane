@@ -3,9 +3,9 @@ package tasks
 import (
 	"time"
 
-	"github.com/kar1hsu/frame/internal/app"
-	"github.com/kar1hsu/frame/internal/pkg/task"
-	"github.com/kar1hsu/frame/internal/pkg/utils"
+	"github.com/kar1hsu/backplane/internal/app"
+	"github.com/kar1hsu/backplane/internal/pkg/task"
+	"github.com/kar1hsu/backplane/internal/pkg/utils"
 )
 
 // RegisterHandlers registers all task handlers on the worker.

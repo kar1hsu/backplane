@@ -11,8 +11,8 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/kar1hsu/frame/internal/pkg/cache"
-	"github.com/kar1hsu/frame/internal/repository"
+	"github.com/kar1hsu/backplane/internal/pkg/cache"
+	"github.com/kar1hsu/backplane/internal/repository"
 )
 
 var repo = repository.NewConfigRepo()

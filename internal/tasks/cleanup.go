@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/kar1hsu/frame/internal/app"
-	"github.com/kar1hsu/frame/internal/pkg/setting"
-	"github.com/kar1hsu/frame/internal/repository"
+	"github.com/kar1hsu/backplane/internal/app"
+	"github.com/kar1hsu/backplane/internal/pkg/setting"
+	"github.com/kar1hsu/backplane/internal/repository"
 )
 
 func HandleCleanup(ctx context.Context, payload []byte) error {

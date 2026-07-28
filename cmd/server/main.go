@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	frame "github.com/kar1hsu/frame"
-	"github.com/kar1hsu/frame/internal/app"
-	"github.com/kar1hsu/frame/internal/module/admin"
-	"github.com/kar1hsu/frame/internal/module/api"
-	"github.com/kar1hsu/frame/internal/pkg/setting"
-	"github.com/kar1hsu/frame/internal/server"
+	"github.com/kar1hsu/backplane"
+	"github.com/kar1hsu/backplane/internal/app"
+	"github.com/kar1hsu/backplane/internal/module/admin"
+	"github.com/kar1hsu/backplane/internal/module/api"
+	"github.com/kar1hsu/backplane/internal/pkg/setting"
+	"github.com/kar1hsu/backplane/internal/server"
 )
 
 func main() {
@@ -41,7 +41,7 @@ func main() {
 	}
 
 	router := server.NewRouter(
-		frame.AdminDist,
+		backplane.AdminDist,
 		admin.New(),
 		api.New(),
 	)

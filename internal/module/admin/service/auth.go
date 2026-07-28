@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kar1hsu/frame/internal/pkg/cache"
-	jwtpkg "github.com/kar1hsu/frame/internal/pkg/jwt"
-	"github.com/kar1hsu/frame/internal/pkg/utils"
-	"github.com/kar1hsu/frame/internal/repository"
+	"github.com/kar1hsu/backplane/internal/pkg/cache"
+	jwtpkg "github.com/kar1hsu/backplane/internal/pkg/jwt"
+	"github.com/kar1hsu/backplane/internal/pkg/utils"
+	"github.com/kar1hsu/backplane/internal/repository"
 )
 
 type AuthService struct {

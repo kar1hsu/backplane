@@ -1,8 +1,8 @@
-# Frame - Go 模块化后台管理框架
+# Backplane - Go 模块化后台管理框架
 
 简体中文 | [English](README.en-US.md)
 
-Frame 是一个模块化的 Go 后台管理框架。后端基于 **Gin + GORM + Casbin + JWT**，前端 **Vue 3 + Element Plus** 通过 `embed` 编进二进制——一次 `go build` 即可交付整个应用。开箱即用：**按钮级 RBAC**（自动生成 Casbin 策略）、**数据库驱动的操作审计日志**、**运行时系统配置**（DB 为准、Redis 缓存、多实例即时生效），以及基于 **Asynq 的分布式任务队列**（含定时任务）。
+Backplane 是一个模块化的 Go 后台管理框架。后端基于 **Gin + GORM + Casbin + JWT**，前端 **Vue 3 + Element Plus** 通过 `embed` 编进二进制——一次 `go build` 即可交付整个应用。开箱即用：**按钮级 RBAC**（自动生成 Casbin 策略）、**数据库驱动的操作审计日志**、**运行时系统配置**（DB 为准、Redis 缓存、多实例即时生效），以及基于 **Asynq 的分布式任务队列**（含定时任务）。
 
 ## 技术栈
 
@@ -52,8 +52,8 @@ Frame 是一个模块化的 Go 后台管理框架。后端基于 **Gin + GORM + 
 ### 1. 克隆项目
 
 ```bash
-git clone <repo-url> frame
-cd frame
+git clone git@github.com:kar1hsu/backplane.git
+cd backplane
 ```
 
 ### 2. 配置
@@ -110,7 +110,7 @@ docker compose up -d
 ## 项目结构
 
 ```
-frame/
+backplane/
 ├── cmd/
 │   ├── server/main.go          # Web 服务入口（生产者）
 │   ├── worker/main.go          # Worker 进程入口（消费者，可多实例）
@@ -290,10 +290,10 @@ cache.RedisStore 实现 (封装 go-redis，自动处理 key 前缀)
 
 ```yaml
 redis:
-  key_prefix: "frame:"
+  key_prefix: "backplane:"
 ```
 
-实际存储的 key 示例：`frame:token:blacklist:eyJhb...`、`frame:perm:user:1`
+实际存储的 key 示例：`backplane:token:blacklist:eyJhb...`、`backplane:perm:user:1`
 
 #### Store 接口支持的数据类型
 
@@ -345,7 +345,7 @@ cache.InitStore(myRedisCluster) // 替换为集群实现
 ### 高可用设计
 
 ```text
-启动:   DB(sys_config) ──载入──▶ Redis Hash(frame:config) 预热
+启动:   DB(sys_config) ──载入──▶ Redis Hash(backplane:config) 预热
 读取:   setting.GetXxx() ─▶ Redis 命中 ─▶ 未命中查 DB 并回填 ─▶ 仍无则用代码内默认值
 写入:   后台保存 ─▶ 写 DB(为准) ─▶ 写穿 Redis
 多实例: 所有实例共享同一个 Redis 缓存，天然一致，无需 Pub/Sub
@@ -361,7 +361,7 @@ cache.InitStore(myRedisCluster) // 替换为集群实现
 通过 `internal/pkg/setting` 的类型化访问器读取，零样板（内部自动走「Redis → DB → 默认值」）：
 
 ```go
-import "github.com/kar1hsu/frame/internal/pkg/setting"
+import "github.com/kar1hsu/backplane/internal/pkg/setting"
 
 siteName := setting.GetString("site.name")                  // 字符串
 allowReg := setting.GetBool("user.allow_register")          // 布尔（"true"/"1" 为真）
@@ -377,7 +377,7 @@ rate     := setting.GetFloat("some.rate")                   // 浮点
 ```go
 var registry = []definition{
     // Group 分组(前端按它分 Tab), Key 唯一键, Name 显示名, Type 类型, Value 默认值, IsPublic 是否公开
-    {Group: "站点", Key: "site.name", Name: "站点名称", Type: "string", Value: "Frame Admin", IsPublic: true},
+    {Group: "站点", Key: "site.name", Name: "站点名称", Type: "string", Value: "Backplane Admin", IsPublic: true},
     {Group: "邮件", Key: "mail.smtp_host", Name: "SMTP 主机", Type: "string", Value: ""}, // ← 新增
 }
 ```
@@ -571,7 +571,7 @@ type Module interface {
 
 ```go
 router := server.NewRouter(
-    frame.AdminDist,
+    backplane.AdminDist,
     admin.New(),
     api.New(),
     yourmodule.New(), // 新模块

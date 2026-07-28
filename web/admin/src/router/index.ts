@@ -59,7 +59,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to, _from, next) => {
-  document.title = `${to.meta.title || ''} - Frame Admin`
+  document.title = `${to.meta.title || ''} - Backplane Admin`
   const token = localStorage.getItem('token')
   if (!to.meta.noAuth && !token) {
     next('/login')

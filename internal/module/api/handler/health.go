@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/kar1hsu/frame/internal/pkg/response"
+	"github.com/kar1hsu/backplane/internal/pkg/response"
 )
 
 type HealthHandler struct{}

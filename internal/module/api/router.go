@@ -2,7 +2,7 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/kar1hsu/frame/internal/module/api/handler"
+	"github.com/kar1hsu/backplane/internal/module/api/handler"
 )
 
 type Module struct{}

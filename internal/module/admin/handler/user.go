@@ -4,13 +4,13 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/kar1hsu/frame/internal/app"
-	"github.com/kar1hsu/frame/internal/middleware"
-	"github.com/kar1hsu/frame/internal/module/admin/service"
-	"github.com/kar1hsu/frame/internal/pkg/errcode"
-	"github.com/kar1hsu/frame/internal/pkg/response"
-	"github.com/kar1hsu/frame/internal/pkg/utils"
-	"github.com/kar1hsu/frame/internal/tasks"
+	"github.com/kar1hsu/backplane/internal/app"
+	"github.com/kar1hsu/backplane/internal/middleware"
+	"github.com/kar1hsu/backplane/internal/module/admin/service"
+	"github.com/kar1hsu/backplane/internal/pkg/errcode"
+	"github.com/kar1hsu/backplane/internal/pkg/response"
+	"github.com/kar1hsu/backplane/internal/pkg/utils"
+	"github.com/kar1hsu/backplane/internal/tasks"
 )
 
 type UserHandler struct {

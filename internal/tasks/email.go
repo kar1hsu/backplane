@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/kar1hsu/frame/internal/app"
+	"github.com/kar1hsu/backplane/internal/app"
 )
 
 type EmailPayload struct {

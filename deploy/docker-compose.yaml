@@ -1,12 +1,12 @@
 # Group Name
-name: ${GROUP_NAME:-frame}
+name: ${GROUP_NAME:-backplane}
 
 services:
   mysql:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?set in deploy/.env}"
-      MYSQL_DATABASE: "${MYSQL_DATABASE:-frame}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-backplane}"
     ports:
       - "13306:3306"
     volumes:
