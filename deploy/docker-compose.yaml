@@ -49,6 +49,7 @@ services:
     volumes:
       - ./config.yaml:/app/config/config.yaml
       - app_logs:/app/logs
+      - ${UPLOAD_DIR:-../storage/uploads}:/app/storage/uploads
 
   worker:
     build:

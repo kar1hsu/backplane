@@ -217,6 +217,12 @@ backplane/
 | POST | /admin/configs/refresh | 刷新缓存（`?key=` 单个，否则全部） | JWT + RBAC |
 | GET | /api/configs/public | 公开配置 key→value（免鉴权，供登录页/前端启动） | 无 |
 
+### 文件上传
+
+| 方法 | 路径 | 说明 | 鉴权 |
+|------|------|------|------|
+| POST | /api/upload | 上传文件（multipart：`file` 必填，`folder` 可选）；返回 `resource_domain` 与文件 `url` 供前端拼接 | 无 |
+
 ### 操作日志
 
 | 方法 | 路径 | 说明 | 鉴权 |
@@ -414,12 +420,111 @@ var registry = []definition{
 `is_public=true` 的项可被公开读取，供登录页/前端启动时拿站点名、Logo 等：
 
 ```
-GET /api/configs/public  →  { "code":0, "data": { "site.name":"...", "site.logo":"..." } }
+GET /api/configs/public  →  { "code":0, "data": { "site.name":"...", "site.logo":"...", "site.resource_domain":"..." } }
 ```
 
 ### 后台使用
 
 「系统管理 → 系统配置」：按分组 Tab 展示、按类型渲染控件；**保存**批量提交并自动刷新缓存；每项可**单独刷新缓存**，右上角可**一键刷新全部缓存**；非内置项可删除。完整接口见上文 [API 概览 · 系统配置](#系统配置)。
+
+## 文件上传与静态资源
+
+### 存储与校验
+
+本地文件默认保存在项目运行目录的 `storage/uploads`。应用启动时会自动创建目录，目录内的实际上传文件由 `.gitignore` 排除，不进入 Git。
+
+```yaml
+storage:
+  directory: storage/uploads
+  public_url: /uploads
+  max_size: 10 # 单文件上限（MB）
+  allowed_types:
+    jpg: image/jpeg
+    jpeg: image/jpeg
+    png: image/png
+    gif: image/gif
+    webp: image/webp
+```
+
+上传组件同时校验扩展名和服务端读取文件头后探测出的真实 MIME，客户端提交的 `Content-Type` 不作为可信依据。SVG 默认不允许，避免同域脚本注入。最终文件使用随机名称，不使用客户端原始文件名。
+
+未传 `folder` 时按应用时区保存到 `Y/m/d` 目录；传入时可使用 `users/avatars` 这类由字母、数字、`_`、`-` 组成的多级目录。绝对路径、空路径段和 `../` 路径会被拒绝。
+
+### 上传接口与资源域名
+
+`POST /api/upload` 使用 `multipart/form-data`：
+
+```bash
+curl -X POST http://localhost:8080/api/upload \
+  -F "file=@avatar.png" \
+  -F "folder=users/avatars"
+```
+
+成功响应：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "original_name": "avatar.png",
+    "file_name": "6f31a8b51c294e0d936487b282e404ed.png",
+    "path": "users/avatars/6f31a8b51c294e0d936487b282e404ed.png",
+    "url": "/uploads/users/avatars/6f31a8b51c294e0d936487b282e404ed.png",
+    "size": 12345,
+    "content_type": "image/png",
+    "resource_domain": "https://cdn.example.com"
+  }
+}
+```
+
+「系统管理 → 系统配置 → 站点 → 资源域名」对应 `site.resource_domain`。留空表示使用当前站点域名；填写时建议只填协议和域名，不带末尾 `/`，例如 `https://cdn.example.com`。上传接口每次从运行时配置读取该值，后台保存后无需重启。
+
+前端完整资源地址：
+
+```ts
+const resourceURL = `${data.resource_domain}${data.url}`
+```
+
+### Docker 与宿主机 Nginx
+
+Nginx 不在 Compose 中时，应用容器必须把上传目录绑定到宿主机。`deploy/.env.example` 提供的默认配置为（复制为 `.env` 后生效）：
+
+```dotenv
+UPLOAD_DIR=../storage/uploads
+```
+
+Compose 将其挂载到容器内的 `/app/storage/uploads`。生产环境也可以填写绝对目录，例如 `/srv/backplane/uploads`，此时宿主机 Nginx 配置为：
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    # 应略大于 storage.max_size，为 multipart 边界和表单字段留出空间
+    client_max_body_size 11m;
+
+    location ^~ /uploads/ {
+        alias /srv/backplane/uploads/;
+        autoindex off;
+        access_log off;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+`alias` 必须指向 `UPLOAD_DIR` 对应的宿主机目录，且末尾 `/` 不能省略。目录建议为 `0755`、文件为 `0644`，不要使用 `chmod 777`。
+
+`/api/upload` 当前属于公开 API，不经过 Admin JWT/RBAC。生产环境应根据业务增加鉴权，并在 Nginx 对该路径配置请求频率限制。
 
 ## 系统运行日志（文件日志）
 

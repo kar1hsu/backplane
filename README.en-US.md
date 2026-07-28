@@ -216,6 +216,12 @@ backplane/
 | POST | /admin/configs/refresh | Refresh cache (`?key=` for one, otherwise all) | JWT + RBAC |
 | GET | /api/configs/public | Public config key→value (no auth, for the login page / app bootstrap) | none |
 
+### File Upload
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | /api/upload | Upload a file (multipart: required `file`, optional `folder`); returns `resource_domain` and file `url` for client-side composition | none |
+
 ### Operation Log
 
 | Method | Path | Description | Auth |
@@ -397,12 +403,111 @@ On startup, `setting.Init` **idempotently** inserts missing keys (without overwr
 Keys with `is_public=true` can be read without authentication — handy for the login page / app bootstrap (site name, logo, …):
 
 ```
-GET /api/configs/public  →  { "code":0, "data": { "site.name":"...", "site.logo":"..." } }
+GET /api/configs/public  →  { "code":0, "data": { "site.name":"...", "site.logo":"...", "site.resource_domain":"..." } }
 ```
 
 ### Admin UI
 
 Under **System → System Config**: grouped into tabs, each value rendered by its type. **Save** submits changes in a batch and refreshes the cache; each row can be **refreshed individually**, and the top-right button **refreshes the whole cache**. Non-built-in entries can be deleted.
+
+## File Uploads and Static Assets
+
+### Storage and validation
+
+Local files are stored under `storage/uploads` relative to the application working directory. The directory is created automatically at startup, and uploaded files are excluded from Git by the directory's `.gitignore`.
+
+```yaml
+storage:
+  directory: storage/uploads
+  public_url: /uploads
+  max_size: 10 # per-file limit in MB
+  allowed_types:
+    jpg: image/jpeg
+    jpeg: image/jpeg
+    png: image/png
+    gif: image/gif
+    webp: image/webp
+```
+
+The uploader validates both the extension and the MIME detected from the file header; the client-provided `Content-Type` is not trusted. SVG is disabled by default to avoid same-origin script injection. Stored files use random names rather than client-provided filenames.
+
+Without `folder`, files are stored under a `Y/m/d` path in the application timezone. A custom folder may contain multiple segments such as `users/avatars`; each segment may contain letters, digits, `_`, and `-`. Absolute paths, empty segments, and `../` traversal are rejected.
+
+### Upload API and resource domain
+
+`POST /api/upload` accepts `multipart/form-data`:
+
+```bash
+curl -X POST http://localhost:8080/api/upload \
+  -F "file=@avatar.png" \
+  -F "folder=users/avatars"
+```
+
+Successful response:
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "original_name": "avatar.png",
+    "file_name": "6f31a8b51c294e0d936487b282e404ed.png",
+    "path": "users/avatars/6f31a8b51c294e0d936487b282e404ed.png",
+    "url": "/uploads/users/avatars/6f31a8b51c294e0d936487b282e404ed.png",
+    "size": 12345,
+    "content_type": "image/png",
+    "resource_domain": "https://cdn.example.com"
+  }
+}
+```
+
+**System → System Config → Site → Resource Domain** maps to `site.resource_domain`. Leave it empty to use the current site origin. When set, use only the scheme and host without a trailing slash, for example `https://cdn.example.com`. The upload endpoint reads this runtime setting for every response, so admin changes take effect without a restart.
+
+Build the complete asset URL on the client:
+
+```ts
+const resourceURL = `${data.resource_domain}${data.url}`
+```
+
+### Docker and host Nginx
+
+When Nginx runs on the host rather than in Compose, bind the application upload directory to the host. `deploy/.env.example` provides this default (copy it to `.env` for deployment):
+
+```dotenv
+UPLOAD_DIR=../storage/uploads
+```
+
+Compose mounts it at `/app/storage/uploads` inside the application container. Production may use an absolute path such as `/srv/backplane/uploads`; the host Nginx configuration then becomes:
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    # Keep this slightly above storage.max_size for multipart overhead
+    client_max_body_size 11m;
+
+    location ^~ /uploads/ {
+        alias /srv/backplane/uploads/;
+        autoindex off;
+        access_log off;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+The `alias` must point to the host directory represented by `UPLOAD_DIR`, and its trailing `/` is required. Recommended permissions are `0755` for directories and `0644` for files; do not use `chmod 777`.
+
+`/api/upload` is currently a public API and does not pass through Admin JWT/RBAC. In production, add business authentication as appropriate and rate-limit this path at Nginx.
 
 ## System Runtime Logs (File Logs)
 

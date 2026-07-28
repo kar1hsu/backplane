@@ -50,3 +50,15 @@ log:
   max_size: 100      # MB，达到大小后轮转，不按天主动切分
   max_backups: 10    # 保留旧日志文件数量
   max_age: 30        # days，文件日志旧文件最长保留天数；0 表示不按天数清理。数据库操作日志由系统配置 log.operation_retain_days 控制
+
+storage:
+  directory: storage/uploads # 本地上传目录，相对于应用工作目录
+  public_url: /uploads       # 公开文件访问路径前缀
+  max_size: 10               # 单个上传文件大小上限（MB）
+  # 扩展名与文件内容探测出的 MIME 必须同时匹配；SVG 默认不开放，避免脚本注入
+  allowed_types:
+    jpg: image/jpeg
+    jpeg: image/jpeg
+    png: image/png
+    gif: image/gif
+    webp: image/webp

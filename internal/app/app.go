@@ -19,6 +19,11 @@ func Init(cfgFile string) error {
 		Log.Warn("jwt.secret 仍为默认值，部署生产前请务必修改")
 	}
 
+	if err := InitStorage(); err != nil {
+		return fmt.Errorf("init storage: %w", err)
+	}
+	Log.Infof("storage initialized at %s", Cfg.Storage.Directory)
+
 	if err := InitDatabase(); err != nil {
 		return fmt.Errorf("init database: %w", err)
 	}

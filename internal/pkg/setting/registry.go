@@ -21,11 +21,14 @@ type definition struct {
 	IsPublic bool
 }
 
+const ResourceDomainKey = "site.resource_domain"
+
 // registry lists the built-in configs. Add new tunables here; they are seeded on
 // next startup (idempotently) and editable from the admin UI afterwards.
 var registry = []definition{
 	{Group: "站点", Key: "site.name", Name: "站点名称", Type: "string", Value: "Backplane Admin", IsPublic: true, Remark: "登录页 / 浏览器标题"},
 	{Group: "站点", Key: "site.logo", Name: "站点 Logo", Type: "string", Value: "", IsPublic: true, Remark: "Logo 图片 URL"},
+	{Group: "站点", Key: ResourceDomainKey, Name: "资源域名", Type: "string", Value: "", IsPublic: true, Remark: "静态资源域名，如 https://cdn.example.com；留空使用当前域名"},
 	{Group: "站点", Key: "site.description", Name: "站点描述", Type: "text", Value: "后台管理系统", IsPublic: true},
 	{Group: "站点", Key: "site.copyright", Name: "版权信息", Type: "string", Value: "", IsPublic: true},
 	{Group: "站点", Key: "site.icp", Name: "ICP 备案号", Type: "string", Value: "", IsPublic: true},

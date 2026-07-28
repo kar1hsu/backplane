@@ -16,6 +16,7 @@ type Config struct {
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Casbin   CasbinConfig   `mapstructure:"casbin"`
 	Log      LogConfig      `mapstructure:"log"`
+	Storage  StorageConfig  `mapstructure:"storage"`
 	Task     TaskConfig     `mapstructure:"task"`
 }
 
@@ -92,6 +93,13 @@ type LogConfig struct {
 	MaxAge     int    `mapstructure:"max_age"`
 }
 
+type StorageConfig struct {
+	Directory    string            `mapstructure:"directory"`
+	PublicURL    string            `mapstructure:"public_url"`
+	MaxSize      int64             `mapstructure:"max_size"`
+	AllowedTypes map[string]string `mapstructure:"allowed_types"`
+}
+
 var Cfg Config
 
 // defaultJWTSecret is the placeholder secret shipped in config.yaml.example.
@@ -134,6 +142,16 @@ func setConfigDefaults() {
 	viper.SetDefault("database.max_idle_conns", 10)
 	viper.SetDefault("database.max_open_conns", 100)
 	viper.SetDefault("jwt.expire", 7200)
+	viper.SetDefault("storage.directory", "storage/uploads")
+	viper.SetDefault("storage.public_url", "/uploads")
+	viper.SetDefault("storage.max_size", 10)
+	viper.SetDefault("storage.allowed_types", map[string]string{
+		"jpg":  "image/jpeg",
+		"jpeg": "image/jpeg",
+		"png":  "image/png",
+		"gif":  "image/gif",
+		"webp": "image/webp",
+	})
 	viper.SetDefault("task.concurrency", 10)
 }
 
