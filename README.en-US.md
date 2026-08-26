@@ -1,5 +1,7 @@
 # Backplane — A Modular Go Admin Framework
 
+[![CI](https://github.com/kar1hsu/backplane/actions/workflows/ci.yml/badge.svg)](https://github.com/kar1hsu/backplane/actions/workflows/ci.yml)
+
 English | [简体中文](README.md)
 
 Backplane is a modular admin/back-office framework for Go. It pairs a **Gin + GORM + Casbin + JWT** backend with a **Vue 3 + Element Plus** panel compiled straight into the binary — a single `go build` ships the whole app. Out of the box: **button-level RBAC** with auto-generated Casbin policies, a **DB-backed operation/audit log**, **runtime system config** (DB as source of truth, Redis-cached, instant multi-instance updates), and an **Asynq distributed task queue** with cron.

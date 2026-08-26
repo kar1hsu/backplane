@@ -1,5 +1,7 @@
 # Backplane - Go 模块化后台管理框架
 
+[![CI](https://github.com/kar1hsu/backplane/actions/workflows/ci.yml/badge.svg)](https://github.com/kar1hsu/backplane/actions/workflows/ci.yml)
+
 简体中文 | [English](README.en-US.md)
 
 Backplane 是一个模块化的 Go 后台管理框架。后端基于 **Gin + GORM + Casbin + JWT**，前端 **Vue 3 + Element Plus** 通过 `embed` 编进二进制——一次 `go build` 即可交付整个应用。开箱即用：**按钮级 RBAC**（自动生成 Casbin 策略）、**数据库驱动的操作审计日志**、**运行时系统配置**（DB 为准、Redis 缓存、多实例即时生效），以及基于 **Asynq 的分布式任务队列**（含定时任务）。

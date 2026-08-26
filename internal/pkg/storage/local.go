@@ -129,7 +129,7 @@ func (s *Local) Save(file *multipart.FileHeader, folders ...string) (*UploadedFi
 	if err != nil {
 		return nil, fmt.Errorf("open upload file: %w", err)
 	}
-	defer source.Close()
+	defer func() { _ = source.Close() }()
 
 	header := make([]byte, 512)
 	headerSize, err := io.ReadFull(source, header)
@@ -166,7 +166,7 @@ func (s *Local) Save(file *multipart.FileHeader, folders ...string) (*UploadedFi
 		return nil, fmt.Errorf("create temporary upload file: %w", err)
 	}
 	tempName := tempFile.Name()
-	defer os.Remove(tempName)
+	defer func() { _ = os.Remove(tempName) }()
 
 	content := io.MultiReader(bytes.NewReader(header[:headerSize]), source)
 	written, copyErr := io.Copy(tempFile, io.LimitReader(content, s.maxBytes+1))

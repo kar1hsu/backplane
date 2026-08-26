@@ -42,7 +42,10 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	parts := strings.SplitN(authHeader, " ", 2)
 	if len(parts) == 2 {
-		h.svc.Logout(c.Request.Context(), parts[1])
+		if err := h.svc.Logout(c.Request.Context(), parts[1]); err != nil {
+			response.Fail(c, errcode.ErrServer, "退出登录失败")
+			return
+		}
 	}
 
 	userID := middleware.GetUserID(c)
@@ -79,6 +82,6 @@ func (h *AuthHandler) GetPermissions(c *gin.Context) {
 		return
 	}
 
-	cache.SetUserPermissions(userID, perms)
+	_ = cache.SetUserPermissions(userID, perms)
 	response.OK(c, perms)
 }

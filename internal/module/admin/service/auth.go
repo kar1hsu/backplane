@@ -41,7 +41,7 @@ func (s *AuthService) Login(ctx context.Context, req *LoginRequest, ip string) (
 
 	user, err := s.userRepo.GetByUsername(ctx, req.Username)
 	if err != nil {
-		cache.IncrLoginFail(req.Username, ip)
+		_, _ = cache.IncrLoginFail(req.Username, ip)
 		return nil, errors.New("用户名或密码错误")
 	}
 

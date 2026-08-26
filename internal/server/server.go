@@ -64,7 +64,7 @@ func setupStaticFiles(r *gin.Engine, adminDist embed.FS, apiPrefixes []string) {
 		name := strings.TrimPrefix(path.Clean("/"+reqPath), "/")
 		if name != "" && fs.ValidPath(name) {
 			if f, err := subFS.Open(name); err == nil {
-				f.Close()
+				_ = f.Close()
 				staticHandler.ServeHTTP(c.Writer, c.Request)
 				return
 			}
