@@ -1,13 +1,25 @@
 <template>
-  <router-view />
+  <n-config-provider :locale="zhCN" :date-locale="dateZhCN" :theme-overrides="themeOverrides">
+    <n-dialog-provider>
+      <n-message-provider>
+        <n-loading-bar-provider>
+          <n-global-style />
+          <router-view />
+        </n-loading-bar-provider>
+      </n-message-provider>
+    </n-dialog-provider>
+  </n-config-provider>
 </template>
 
-<style>
-html,
-body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  overflow: hidden;
-}
-</style>
+<script setup lang="ts">
+import {
+  NConfigProvider,
+  NDialogProvider,
+  NGlobalStyle,
+  NLoadingBarProvider,
+  NMessageProvider,
+  dateZhCN,
+  zhCN,
+} from 'naive-ui'
+import { themeOverrides } from '@/styles/theme'
+</script>

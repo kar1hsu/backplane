@@ -1,7 +1,7 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { useUserStore } from '@/store/user'
+import { message } from '@/utils/ui'
 
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE || '',
@@ -32,7 +32,7 @@ request.interceptors.response.use(
   (response) => {
     const res = response.data
     if (res.code !== 0) {
-      ElMessage.error(res.message || '请求失败')
+      message.error(res.message || '请求失败')
       if (res.code === 401) {
         handleUnauthorized()
       }
@@ -44,7 +44,7 @@ request.interceptors.response.use(
     if (error.response?.status === 401) {
       handleUnauthorized()
     }
-    ElMessage.error(error.message || '网络错误')
+    message.error(error.message || '网络错误')
     return Promise.reject(error)
   }
 )

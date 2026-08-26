@@ -1,155 +1,299 @@
 <template>
-  <div>
-    <el-card>
+  <div class="page-shell">
+    <n-card class="page-panel" :bordered="true">
       <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <span>系统配置</span>
+        <div class="page-toolbar">
           <div>
-            <el-button v-if="canAdd" @click="openCreate">新增配置</el-button>
-            <el-button v-if="canEdit" :loading="refreshing" @click="handleRefreshAll">刷新全部缓存</el-button>
-            <el-button v-if="canEdit" type="primary" :loading="saving" @click="handleSave">保存</el-button>
+            <h1 class="page-title">系统配置</h1>
+            <span class="muted-text">运行时配置保存后立即同步到共享缓存</span>
           </div>
+          <n-space>
+            <n-button v-if="canAdd" @click="openCreate">
+              <template #icon><n-icon :component="AddOutline" /></template>
+              新增配置
+            </n-button>
+            <n-button v-if="canEdit" :loading="refreshing" @click="handleRefreshAll">
+              <template #icon><n-icon :component="RefreshOutline" /></template>
+              刷新缓存
+            </n-button>
+            <n-button v-if="canEdit" type="primary" :loading="saving" @click="handleSave">
+              <template #icon><n-icon :component="SaveOutline" /></template>
+              保存配置
+            </n-button>
+          </n-space>
         </div>
       </template>
 
-      <el-tabs v-if="groups.length" v-model="activeGroup" v-loading="loading">
-        <el-tab-pane v-for="g in groups" :key="g" :label="g" :name="g">
-          <el-table :data="grouped[g]" row-key="id">
-            <el-table-column label="名称" width="200">
-              <template #default="{ row }">
-                <div>{{ row.name || row.key }}</div>
-                <div v-if="row.remark" style="color: #909399; font-size: 12px">{{ row.remark }}</div>
-              </template>
-            </el-table-column>
-            <el-table-column label="键" width="210">
-              <template #default="{ row }"><el-tag size="small" type="info">{{ row.key }}</el-tag></template>
-            </el-table-column>
-            <el-table-column label="值" min-width="360">
-              <template #default="{ row }">
-                <!-- 按类型给合理宽高：数字短、文本中等、select 中等，text/json 宽且高 -->
-                <el-switch v-if="row.type === 'bool'" v-model="row.value" active-value="true" inactive-value="false" />
-                <el-select v-else-if="row.type === 'select'" v-model="row.value" style="width: 320px" placeholder="请选择">
-                  <el-option v-for="opt in parseOptions(row.options)" :key="opt.value" :label="opt.label" :value="opt.value" />
-                </el-select>
-                <el-input
-                  v-else-if="row.type === 'json'"
-                  v-model="row.value"
-                  type="textarea"
-                  :autosize="{ minRows: 3, maxRows: 12 }"
-                  style="width: 100%; font-family: monospace"
-                />
-                <el-input
-                  v-else-if="row.type === 'text'"
-                  v-model="row.value"
-                  type="textarea"
-                  :autosize="{ minRows: 2, maxRows: 6 }"
-                  style="width: 100%"
-                />
-                <el-input
-                  v-else-if="row.type === 'int' || row.type === 'float'"
-                  v-model="row.value"
-                  style="width: 180px"
-                  placeholder="数字"
-                />
-                <el-input v-else v-model="row.value" style="width: 360px" />
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="190" fixed="right">
-              <template #default="{ row }">
-                <el-button v-if="canEdit" link type="primary" @click="openEdit(row)">编辑</el-button>
-                <el-button v-if="canEdit" link type="primary" @click="handleRefreshKey(row.key)">刷新</el-button>
-                <el-popconfirm
-                  v-if="canDelete && !row.builtin"
-                  title="确认删除该配置？"
-                  @confirm="handleDelete(row.id)"
-                >
-                  <template #reference><el-button link type="danger">删除</el-button></template>
-                </el-popconfirm>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-tab-pane>
-      </el-tabs>
-      <el-empty v-else description="暂无配置" />
-    </el-card>
+      <n-spin :show="loading">
+        <n-tabs v-if="groups.length" v-model:value="activeGroup" type="line" animated>
+          <n-tab-pane v-for="group in groups" :key="group" :name="group" :tab="group">
+            <n-data-table
+              :columns="columns"
+              :data="grouped[group]"
+              :row-key="(row: any) => row.id"
+              :scroll-x="980"
+            />
+          </n-tab-pane>
+        </n-tabs>
+        <n-empty v-else description="暂无配置" />
+      </n-spin>
+    </n-card>
 
-    <!-- 新增 / 编辑 -->
-    <el-dialog v-model="dialogVisible" :title="dialogMode === 'edit' ? '编辑配置' : '新增配置'" width="560px" destroy-on-close>
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="90px">
-        <el-form-item label="分组" prop="group"><el-input v-model="form.group" placeholder="如：站点" /></el-form-item>
-        <el-form-item label="键" prop="key">
-          <el-input v-model="form.key" placeholder="如：site.name" :disabled="dialogMode === 'edit'" />
-        </el-form-item>
-        <el-form-item label="名称" prop="name"><el-input v-model="form.name" /></el-form-item>
-        <el-form-item label="类型">
-          <el-select v-model="form.type" style="width: 100%">
-            <el-option v-for="t in types" :key="t" :label="t" :value="t" />
-          </el-select>
-        </el-form-item>
+    <n-modal
+      v-model:show="dialogVisible"
+      preset="card"
+      :title="dialogMode === 'edit' ? '编辑配置' : '新增配置'"
+      :style="modalStyle"
+      :mask-closable="false"
+    >
+      <n-form ref="formRef" :model="form" :rules="formRules" label-placement="left" label-width="76">
+        <n-form-item label="分组">
+          <n-input v-model:value="form.group" placeholder="如：站点" />
+        </n-form-item>
+        <n-form-item label="键" path="key">
+          <n-input v-model:value="form.key" :disabled="dialogMode === 'edit'" placeholder="如：site.name" />
+        </n-form-item>
+        <n-form-item label="名称" path="name">
+          <n-input v-model:value="form.name" placeholder="后台显示名称" />
+        </n-form-item>
+        <n-form-item label="类型">
+          <n-select v-model:value="form.type" :options="typeOptions" />
+        </n-form-item>
 
-        <!-- select 选项编辑器：键值对，避免手写 JSON -->
-        <el-form-item v-if="form.type === 'select'" label="选项">
-          <div style="width: 100%">
-            <div v-for="(opt, i) in optionRows" :key="i" style="display: flex; gap: 8px; margin-bottom: 6px">
-              <el-input v-model="opt.label" placeholder="显示文字" />
-              <el-input v-model="opt.value" placeholder="存储值" />
-              <el-button link type="danger" @click="optionRows.splice(i, 1)">删除</el-button>
+        <n-form-item v-if="form.type === 'select'" label="选项">
+          <div class="option-editor">
+            <div v-for="(option, index) in optionRows" :key="index" class="option-row">
+              <n-input v-model:value="option.label" placeholder="显示文字" />
+              <n-input v-model:value="option.value" placeholder="存储值" />
+              <n-button quaternary circle type="error" aria-label="删除选项" @click="optionRows.splice(index, 1)">
+                <template #icon><n-icon :component="TrashOutline" /></template>
+              </n-button>
             </div>
-            <el-button size="small" @click="optionRows.push({ label: '', value: '' })">+ 添加选项</el-button>
+            <n-button dashed block @click="optionRows.push({ label: '', value: '' })">
+              <template #icon><n-icon :component="AddOutline" /></template>
+              添加选项
+            </n-button>
           </div>
-        </el-form-item>
+        </n-form-item>
 
-        <el-form-item label="值">
-          <el-switch v-if="form.type === 'bool'" v-model="form.value" active-value="true" inactive-value="false" />
-          <el-select v-else-if="form.type === 'select'" v-model="form.value" style="width: 100%" placeholder="默认值（从选项中选）">
-            <el-option v-for="(o, i) in validOptionRows" :key="i" :label="o.label || o.value" :value="o.value" />
-          </el-select>
-          <el-input v-else-if="form.type === 'text' || form.type === 'json'" v-model="form.value" type="textarea" :rows="3" />
-          <el-input v-else v-model="form.value" :placeholder="form.type === 'int' || form.type === 'float' ? '数字' : ''" />
-        </el-form-item>
+        <n-form-item label="值">
+          <n-switch
+            v-if="form.type === 'bool'"
+            v-model:value="form.value"
+            checked-value="true"
+            unchecked-value="false"
+          />
+          <n-select
+            v-else-if="form.type === 'select'"
+            v-model:value="form.value"
+            :options="validOptionRows"
+            placeholder="请选择默认值"
+          />
+          <n-input
+            v-else-if="form.type === 'text' || form.type === 'json'"
+            v-model:value="form.value"
+            type="textarea"
+            :autosize="{ minRows: 3, maxRows: 8 }"
+          />
+          <n-input v-else v-model:value="form.value" :placeholder="numericPlaceholder(form.type)" />
+        </n-form-item>
 
-        <el-form-item label="公开读"><el-switch v-model="form.is_public" /></el-form-item>
-        <el-form-item label="排序"><el-input-number v-model="form.sort" :min="0" /></el-form-item>
-        <el-form-item label="备注"><el-input v-model="form.remark" /></el-form-item>
-      </el-form>
+        <n-grid cols="1 s:2" responsive="screen" :x-gap="16">
+          <n-form-item-gi label="公开读取">
+            <n-switch v-model:value="form.is_public" />
+          </n-form-item-gi>
+          <n-form-item-gi label="排序">
+            <n-input-number v-model:value="form.sort" :min="0" />
+          </n-form-item-gi>
+        </n-grid>
+        <n-form-item label="备注">
+          <n-input v-model:value="form.remark" placeholder="配置用途或取值说明" />
+        </n-form-item>
+      </n-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <div class="modal-actions">
+          <n-button @click="dialogVisible = false">取消</n-button>
+          <n-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</n-button>
+        </div>
       </template>
-    </el-dialog>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, type FormInstance } from 'element-plus'
-import { getConfigList, batchUpdateConfig, createConfig, updateConfig, deleteConfig, refreshConfig } from '@/api/config'
+import { computed, h, onMounted, reactive, ref } from 'vue'
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NEmpty,
+  NForm,
+  NFormItem,
+  NFormItemGi,
+  NGrid,
+  NIcon,
+  NInput,
+  NInputNumber,
+  NModal,
+  NSelect,
+  NSpace,
+  NSpin,
+  NSwitch,
+  NTabPane,
+  NTabs,
+  NTag,
+  type DataTableColumns,
+  type FormInst,
+  type FormRules,
+} from 'naive-ui'
+import { AddOutline, CreateOutline, RefreshOutline, SaveOutline, TrashOutline } from '@vicons/ionicons5'
+import {
+  batchUpdateConfig,
+  createConfig,
+  deleteConfig,
+  getConfigList,
+  refreshConfig,
+  updateConfig,
+} from '@/api/config'
+import TableActionButton from '@/components/TableActionButton.vue'
 import { useUserStore } from '@/store/user'
+import { dialog, message } from '@/utils/ui'
 
 const userStore = useUserStore()
 const canEdit = computed(() => userStore.hasPermission('system:config:edit'))
 const canAdd = computed(() => userStore.hasPermission('system:config:add'))
 const canDelete = computed(() => userStore.hasPermission('system:config:delete'))
-
 const loading = ref(false)
 const saving = ref(false)
 const refreshing = ref(false)
 const submitLoading = ref(false)
 const configs = ref<any[]>([])
 const activeGroup = ref('')
-
+const dialogVisible = ref(false)
+const dialogMode = ref<'create' | 'edit'>('create')
+const editingId = ref(0)
+const formRef = ref<FormInst | null>(null)
+const optionRows = ref<Array<{ label: string; value: string }>>([])
+const modalStyle = { width: 'min(600px, calc(100vw - 32px))' }
 const types = ['string', 'int', 'float', 'bool', 'text', 'json', 'select']
+const typeOptions = types.map((type) => ({ label: type, value: type }))
+
+const defaultForm = {
+  group: '',
+  key: '',
+  name: '',
+  type: 'string',
+  value: '',
+  is_public: false,
+  sort: 0,
+  remark: '',
+}
+const form = reactive({ ...defaultForm })
+const formRules: FormRules = {
+  key: { required: true, message: '请输入配置键', trigger: ['input', 'blur'] },
+  name: { required: true, message: '请输入名称', trigger: ['input', 'blur'] },
+}
 
 const grouped = computed<Record<string, any[]>>(() => {
-  const m: Record<string, any[]> = {}
-  for (const c of configs.value) {
-    const g = c.group || '其它'
-    if (!m[g]) m[g] = []
-    m[g].push(c)
+  const result: Record<string, any[]> = {}
+  for (const config of configs.value) {
+    const group = config.group || '其它'
+    if (!result[group]) result[group] = []
+    result[group].push(config)
   }
-  return m
+  return result
 })
 const groups = computed(() => Object.keys(grouped.value))
+const validOptionRows = computed(() =>
+  optionRows.value
+    .filter((option) => option.value !== '')
+    .map((option) => ({ label: option.label || option.value, value: option.value })),
+)
+
+function renderConfigValue(row: any) {
+  if (row.type === 'bool') {
+    return h(NSwitch, {
+      value: row.value,
+      checkedValue: 'true',
+      uncheckedValue: 'false',
+      'onUpdate:value': (value: string) => { row.value = value },
+    })
+  }
+  if (row.type === 'select') {
+    return h(NSelect, {
+      value: row.value,
+      options: parseOptions(row.options),
+      style: { width: '300px' },
+      'onUpdate:value': (value: string) => { row.value = value },
+    })
+  }
+  if (row.type === 'text' || row.type === 'json') {
+    return h(NInput, {
+      value: row.value,
+      type: 'textarea',
+      autosize: { minRows: 2, maxRows: 6 },
+      'onUpdate:value': (value: string) => { row.value = value },
+    })
+  }
+  return h(NInput, {
+    value: row.value,
+    style: { width: row.type === 'int' || row.type === 'float' ? '180px' : '360px' },
+    placeholder: numericPlaceholder(row.type),
+    'onUpdate:value': (value: string) => { row.value = value },
+  })
+}
+
+const columns = computed<DataTableColumns<any>>(() => [
+  {
+    title: '名称',
+    key: 'name',
+    width: 210,
+    render: (row) => h('div', [
+      h('div', { class: 'config-name' }, row.name || row.key),
+      row.remark ? h('div', { class: 'config-remark' }, row.remark) : null,
+    ]),
+  },
+  {
+    title: '键',
+    key: 'key',
+    width: 230,
+    render: (row) => h(NTag, { size: 'small', bordered: false }, {
+      default: () => h('span', { class: 'code-text' }, row.key),
+    }),
+  },
+  { title: '值', key: 'value', minWidth: 390, render: renderConfigValue },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 128,
+    fixed: 'right',
+    render: (row) => h('div', { class: 'table-actions' }, [
+        canEdit.value
+          ? h(TableActionButton, {
+              label: '编辑',
+              icon: CreateOutline,
+              onClick: () => openEdit(row),
+            })
+          : null,
+        canEdit.value
+          ? h(TableActionButton, {
+              label: '刷新',
+              icon: RefreshOutline,
+              type: 'primary',
+              onClick: () => handleRefreshKey(row.key),
+            })
+          : null,
+        canDelete.value && !row.builtin
+          ? h(TableActionButton, {
+              label: '删除',
+              icon: TrashOutline,
+              type: 'error',
+              onClick: () => confirmDelete(row.id),
+            })
+          : null,
+      ]),
+  },
+])
 
 async function fetchData() {
   loading.value = true
@@ -167,9 +311,9 @@ async function fetchData() {
 async function handleSave() {
   saving.value = true
   try {
-    const items = configs.value.map((c) => ({ key: c.key, value: String(c.value ?? '') }))
+    const items = configs.value.map((config) => ({ key: config.key, value: String(config.value ?? '') }))
     await batchUpdateConfig(items)
-    ElMessage.success('保存成功')
+    message.success('配置已保存')
     fetchData()
   } finally {
     saving.value = false
@@ -180,7 +324,7 @@ async function handleRefreshAll() {
   refreshing.value = true
   try {
     await refreshConfig()
-    ElMessage.success('已刷新全部缓存')
+    message.success('全部缓存已刷新')
   } finally {
     refreshing.value = false
   }
@@ -188,41 +332,40 @@ async function handleRefreshAll() {
 
 async function handleRefreshKey(key: string) {
   await refreshConfig(key)
-  ElMessage.success(`已刷新：${key}`)
+  message.success(`已刷新：${key}`)
 }
 
-async function handleDelete(id: number) {
-  await deleteConfig(id)
-  ElMessage.success('删除成功')
-  fetchData()
+function confirmDelete(id: number) {
+  dialog.warning({
+    title: '删除配置',
+    content: '确认删除该自定义配置？',
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await deleteConfig(id)
+      message.success('删除成功')
+      fetchData()
+    },
+  })
 }
 
-function parseOptions(options: string): { label: string; value: string }[] {
+function parseOptions(options: string): Array<{ label: string; value: string }> {
   if (!options) return []
   try {
-    const arr = JSON.parse(options)
-    return arr.map((o: any) =>
-      typeof o === 'object' ? { label: o.label ?? o.value, value: String(o.value) } : { label: String(o), value: String(o) },
+    const parsed = JSON.parse(options)
+    return parsed.map((option: any) =>
+      typeof option === 'object'
+        ? { label: option.label ?? option.value, value: String(option.value) }
+        : { label: String(option), value: String(option) },
     )
   } catch {
     return []
   }
 }
 
-// ── 新增 / 编辑弹窗 ──
-const dialogVisible = ref(false)
-const dialogMode = ref<'create' | 'edit'>('create')
-const editingId = ref(0)
-const formRef = ref<FormInstance>()
-const optionRows = ref<{ label: string; value: string }[]>([])
-const defaultForm = { group: '', key: '', name: '', type: 'string', value: '', is_public: false, sort: 0, remark: '' }
-const form = reactive({ ...defaultForm })
-const formRules = {
-  key: [{ required: true, message: '请输入配置键', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
+function numericPlaceholder(type: string) {
+  return type === 'int' || type === 'float' ? '请输入数字' : ''
 }
-
-const validOptionRows = computed(() => optionRows.value.filter((o) => o.value !== ''))
 
 function openCreate() {
   dialogMode.value = 'create'
@@ -250,27 +393,27 @@ function openEdit(row: any) {
 }
 
 async function handleSubmit() {
-  await formRef.value?.validate()
+  try {
+    await formRef.value?.validate()
+  } catch {
+    return
+  }
 
   let options = ''
   if (form.type === 'select') {
-    const rows = optionRows.value.filter((o) => o.value !== '')
-    if (rows.length === 0) {
-      ElMessage.warning('请至少添加一个选项')
+    if (validOptionRows.value.length === 0) {
+      message.warning('请至少添加一个选项')
       return
     }
-    options = JSON.stringify(rows.map((o) => ({ label: o.label || o.value, value: o.value })))
+    options = JSON.stringify(validOptionRows.value)
   }
 
-  const payload = { ...form, options }
   submitLoading.value = true
   try {
-    if (dialogMode.value === 'edit') {
-      await updateConfig(editingId.value, payload)
-    } else {
-      await createConfig(payload)
-    }
-    ElMessage.success('保存成功')
+    const payload = { ...form, options }
+    if (dialogMode.value === 'edit') await updateConfig(editingId.value, payload)
+    else await createConfig(payload)
+    message.success('配置已保存')
     dialogVisible.value = false
     fetchData()
   } finally {
@@ -280,3 +423,50 @@ async function handleSubmit() {
 
 onMounted(fetchData)
 </script>
+
+<style scoped>
+.muted-text {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.config-name {
+  font-weight: 600;
+}
+
+.config-remark {
+  margin-top: 3px;
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.option-editor {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 34px;
+  gap: 8px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .option-row {
+    grid-template-columns: 1fr 34px;
+  }
+
+  .option-row :deep(.n-input):nth-child(2) {
+    grid-column: 1;
+  }
+}
+</style>

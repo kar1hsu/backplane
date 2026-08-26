@@ -1,174 +1,231 @@
 <template>
-  <div>
-    <el-card>
+  <div class="page-shell">
+    <n-card class="page-panel" :bordered="true">
       <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <span>操作日志</span>
-          <el-button
-            v-if="userStore.hasPermission('system:operlog:clear')"
-            type="danger"
-            plain
-            @click="handleClear"
-          >清空日志</el-button>
+        <div class="page-toolbar">
+          <div>
+            <h1 class="page-title">操作日志</h1>
+            <span class="muted-text">查询管理操作、响应结果与调用耗时</span>
+          </div>
+          <n-button v-if="canClear" type="error" secondary @click="confirmClear">
+            <template #icon><n-icon :component="TrashBinOutline" /></template>
+            清空日志
+          </n-button>
         </div>
       </template>
 
-      <!-- 搜索 -->
-      <el-form :inline="true" :model="query" style="margin-bottom: 8px">
-        <el-form-item label="操作人">
-          <el-input v-model="query.username" placeholder="用户名" clearable style="width: 130px" @keyup.enter="handleSearch" />
-        </el-form-item>
-        <el-form-item label="模块">
-          <el-input v-model="query.module" placeholder="模块" clearable style="width: 130px" @keyup.enter="handleSearch" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="query.success" placeholder="全部" clearable style="width: 100px">
-            <el-option label="成功" value="true" />
-            <el-option label="失败" value="false" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="关键字">
-          <el-input v-model="query.keyword" placeholder="动作 / 路径" clearable style="width: 150px" @keyup.enter="handleSearch" />
-        </el-form-item>
-        <el-form-item label="时间">
-          <el-date-picker
-            v-model="dateRange"
-            type="datetimerange"
-            range-separator="至"
-            start-placeholder="开始"
-            end-placeholder="结束"
-            value-format="YYYY-MM-DD HH:mm:ss"
-            style="width: 340px"
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
-        </el-form-item>
-      </el-form>
+      <div class="filter-bar">
+        <n-input v-model:value="query.username" clearable placeholder="操作人" @keyup.enter="handleSearch" />
+        <n-input v-model:value="query.module" clearable placeholder="模块" @keyup.enter="handleSearch" />
+        <n-select v-model:value="query.success" clearable :options="successOptions" placeholder="执行状态" />
+        <n-input v-model:value="query.keyword" clearable placeholder="操作或路径" @keyup.enter="handleSearch" />
+        <n-date-picker
+          v-model:value="dateRange"
+          type="datetimerange"
+          clearable
+          start-placeholder="开始时间"
+          end-placeholder="结束时间"
+          class="date-filter"
+        />
+        <n-space>
+          <n-button type="primary" @click="handleSearch">
+            <template #icon><n-icon :component="SearchOutline" /></template>
+            查询
+          </n-button>
+          <n-button @click="handleReset">
+            <template #icon><n-icon :component="RefreshOutline" /></template>
+            重置
+          </n-button>
+        </n-space>
+      </div>
 
-      <el-table :data="tableData" v-loading="loading" stripe>
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column label="时间" width="170">
-          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
-        </el-table-column>
-        <el-table-column prop="username" label="操作人" width="110" />
-        <el-table-column prop="module" label="模块" width="110" />
-        <el-table-column prop="action" label="操作" width="120" />
-        <el-table-column label="方法" width="90">
-          <template #default="{ row }">
-            <el-tag :type="methodType(row.method)" size="small">{{ row.method }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="path" label="路径" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="client_ip" label="IP" width="130" />
-        <el-table-column label="结果" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.success ? 'success' : 'danger'" size="small">{{ row.success ? '成功' : '失败' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="耗时" width="90">
-          <template #default="{ row }">{{ row.latency_ms }} ms</template>
-        </el-table-column>
-        <el-table-column label="操作" width="130" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-            <el-popconfirm
-              v-if="userStore.hasPermission('system:operlog:delete')"
-              title="确认删除该条日志？"
-              @confirm="handleDelete(row.id)"
-            >
-              <template #reference>
-                <el-button link type="danger">删除</el-button>
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
+      <n-data-table
+        remote
+        striped
+        :columns="columns"
+        :data="tableData"
+        :loading="loading"
+        :row-key="(row: any) => row.id"
+        :scroll-x="1320"
+      />
 
-      <div style="margin-top: 16px; display: flex; justify-content: flex-end">
-        <el-pagination
-          v-model:current-page="page"
+      <div class="table-footer">
+        <n-pagination
+          v-model:page="page"
           v-model:page-size="pageSize"
-          :total="total"
+          :item-count="total"
           :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next"
-          @size-change="fetchData"
-          @current-change="fetchData"
+          show-size-picker
+          :prefix="({ itemCount }) => `共 ${itemCount} 条`"
+          @update:page="fetchData"
+          @update:page-size="handlePageSizeChange"
         />
       </div>
-    </el-card>
+    </n-card>
 
-    <!-- 详情 -->
-    <el-dialog v-model="detailVisible" title="日志详情" width="680px">
-      <el-descriptions v-if="detail" :column="2" border>
-        <el-descriptions-item label="操作人">{{ detail.username }}（ID {{ detail.user_id }}）</el-descriptions-item>
-        <el-descriptions-item label="角色">{{ detail.role_codes }}</el-descriptions-item>
-        <el-descriptions-item label="模块">{{ detail.module }}</el-descriptions-item>
-        <el-descriptions-item label="操作">{{ detail.action }}</el-descriptions-item>
-        <el-descriptions-item label="方法">{{ detail.method }}</el-descriptions-item>
-        <el-descriptions-item label="结果">
-          <el-tag :type="detail.success ? 'success' : 'danger'" size="small">{{ detail.success ? '成功' : '失败' }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="HTTP 状态">{{ detail.status }}</el-descriptions-item>
-        <el-descriptions-item label="业务码">{{ detail.biz_code }}</el-descriptions-item>
-        <el-descriptions-item label="IP">{{ detail.client_ip }}</el-descriptions-item>
-        <el-descriptions-item label="耗时">{{ detail.latency_ms }} ms</el-descriptions-item>
-        <el-descriptions-item label="路径" :span="2">{{ detail.method }} {{ detail.path }}</el-descriptions-item>
-        <el-descriptions-item label="时间" :span="2">{{ formatTime(detail.created_at) }}</el-descriptions-item>
-        <el-descriptions-item label="User-Agent" :span="2">{{ detail.user_agent }}</el-descriptions-item>
-        <el-descriptions-item v-if="!detail.success" label="错误信息" :span="2">{{ detail.error_msg }}</el-descriptions-item>
-        <el-descriptions-item label="请求参数" :span="2">
+    <n-modal
+      v-model:show="detailVisible"
+      preset="card"
+      title="日志详情"
+      :style="detailModalStyle"
+    >
+      <n-descriptions v-if="detail" bordered label-placement="left" :column="2">
+        <n-descriptions-item label="操作人">{{ detail.username }}（ID {{ detail.user_id }}）</n-descriptions-item>
+        <n-descriptions-item label="角色">{{ detail.role_codes || '-' }}</n-descriptions-item>
+        <n-descriptions-item label="模块">{{ detail.module }}</n-descriptions-item>
+        <n-descriptions-item label="操作">{{ detail.action }}</n-descriptions-item>
+        <n-descriptions-item label="方法">
+          <n-tag size="small" :type="methodType(detail.method)" :bordered="false">{{ detail.method }}</n-tag>
+        </n-descriptions-item>
+        <n-descriptions-item label="结果">
+          <n-tag size="small" :type="detail.success ? 'success' : 'error'" :bordered="false">
+            {{ detail.success ? '成功' : '失败' }}
+          </n-tag>
+        </n-descriptions-item>
+        <n-descriptions-item label="HTTP 状态">{{ detail.status }}</n-descriptions-item>
+        <n-descriptions-item label="业务码">{{ detail.biz_code }}</n-descriptions-item>
+        <n-descriptions-item label="IP">{{ detail.client_ip }}</n-descriptions-item>
+        <n-descriptions-item label="耗时">{{ detail.latency_ms }} ms</n-descriptions-item>
+        <n-descriptions-item label="路径" :span="2">
+          <span class="code-text">{{ detail.method }} {{ detail.path }}</span>
+        </n-descriptions-item>
+        <n-descriptions-item label="时间" :span="2">{{ formatTime(detail.created_at) }}</n-descriptions-item>
+        <n-descriptions-item label="User-Agent" :span="2">{{ detail.user_agent || '-' }}</n-descriptions-item>
+        <n-descriptions-item v-if="!detail.success" label="错误信息" :span="2">
+          <span class="error-text">{{ detail.error_msg }}</span>
+        </n-descriptions-item>
+        <n-descriptions-item label="请求参数" :span="2">
           <span v-if="!hasParams(detail.req_params)" class="param-empty">无</span>
           <div v-else class="param-viewer">
             <div class="param-summary">{{ formatParamSummary(detail.req_params) }}</div>
-            <el-collapse>
-              <el-collapse-item title="完整请求" name="request">
+            <n-collapse arrow-placement="right">
+              <n-collapse-item title="查看完整请求" name="request">
                 <pre class="param-pre">{{ formatParams(detail.req_params) }}</pre>
-              </el-collapse-item>
-            </el-collapse>
+              </n-collapse-item>
+            </n-collapse>
           </div>
-        </el-descriptions-item>
-        <el-descriptions-item label="响应参数" :span="2">
+        </n-descriptions-item>
+        <n-descriptions-item label="响应参数" :span="2">
           <span v-if="!hasParams(detail.resp_params)" class="param-empty">无</span>
           <div v-else class="param-viewer">
             <div class="param-summary">{{ formatParamSummary(detail.resp_params) }}</div>
-            <el-collapse>
-              <el-collapse-item title="完整响应" name="response">
+            <n-collapse arrow-placement="right">
+              <n-collapse-item title="查看完整响应" name="response">
                 <pre class="param-pre">{{ formatParams(detail.resp_params) }}</pre>
-              </el-collapse-item>
-            </el-collapse>
+              </n-collapse-item>
+            </n-collapse>
           </div>
-        </el-descriptions-item>
-      </el-descriptions>
-    </el-dialog>
+        </n-descriptions-item>
+      </n-descriptions>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import {
-  getOperationLogList,
-  getOperationLogById,
-  deleteOperationLog,
+  NButton,
+  NCard,
+  NCollapse,
+  NCollapseItem,
+  NDataTable,
+  NDatePicker,
+  NDescriptions,
+  NDescriptionsItem,
+  NIcon,
+  NInput,
+  NModal,
+  NPagination,
+  NSelect,
+  NSpace,
+  NTag,
+  type DataTableColumns,
+} from 'naive-ui'
+import { EyeOutline, RefreshOutline, SearchOutline, TrashBinOutline, TrashOutline } from '@vicons/ionicons5'
+import {
   clearOperationLogs,
+  deleteOperationLog,
+  getOperationLogById,
+  getOperationLogList,
 } from '@/api/operationLog'
+import TableActionButton from '@/components/TableActionButton.vue'
 import { useUserStore } from '@/store/user'
+import { dialog, message } from '@/utils/ui'
+
+type TagType = 'success' | 'info' | 'warning' | 'error' | 'default'
 
 const userStore = useUserStore()
-
+const canDelete = computed(() => userStore.hasPermission('system:operlog:delete'))
+const canClear = computed(() => userStore.hasPermission('system:operlog:clear'))
 const loading = ref(false)
 const tableData = ref<any[]>([])
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
-
-const query = reactive({ username: '', module: '', success: '', keyword: '' })
-const dateRange = ref<[string, string] | null>(null)
-
+const query = reactive({ username: '', module: '', success: null as string | null, keyword: '' })
+const dateRange = ref<[number, number] | null>(null)
 const detailVisible = ref(false)
 const detail = ref<any>(null)
+const detailModalStyle = { width: 'min(780px, calc(100vw - 24px))' }
+const successOptions = [
+  { label: '成功', value: 'true' },
+  { label: '失败', value: 'false' },
+]
+
+const columns = computed<DataTableColumns<any>>(() => [
+  { title: 'ID', key: 'id', width: 68 },
+  { title: '时间', key: 'created_at', width: 168, render: (row) => formatTime(row.created_at) },
+  { title: '操作人', key: 'username', width: 110, render: (row) => row.username || '-' },
+  { title: '模块', key: 'module', width: 110 },
+  { title: '操作', key: 'action', width: 125, ellipsis: { tooltip: true } },
+  {
+    title: '方法',
+    key: 'method',
+    width: 86,
+    render: (row) => h(NTag, { size: 'small', bordered: false, type: methodType(row.method) }, {
+      default: () => row.method,
+    }),
+  },
+  {
+    title: '路径',
+    key: 'path',
+    minWidth: 210,
+    ellipsis: { tooltip: true },
+    render: (row) => h('span', { class: 'code-text' }, row.path),
+  },
+  { title: 'IP', key: 'client_ip', width: 132 },
+  {
+    title: '结果',
+    key: 'success',
+    width: 80,
+    render: (row) => h(NTag, { size: 'small', bordered: false, type: row.success ? 'success' : 'error' }, {
+      default: () => (row.success ? '成功' : '失败'),
+    }),
+  },
+  { title: '耗时', key: 'latency_ms', width: 88, render: (row) => `${row.latency_ms} ms` },
+  {
+    title: '操作',
+    key: 'actions',
+    width: canDelete.value ? 96 : 62,
+    fixed: 'right',
+    render: (row) => h('div', { class: 'table-actions' }, [
+        h(TableActionButton, {
+          label: '详情',
+          icon: EyeOutline,
+          type: 'primary',
+          onClick: () => openDetail(row),
+        }),
+        canDelete.value
+          ? h(TableActionButton, {
+              label: '删除',
+              icon: TrashOutline,
+              type: 'error',
+              onClick: () => confirmDelete(row.id),
+            })
+          : null,
+      ]),
+  },
+])
 
 async function fetchData() {
   loading.value = true
@@ -180,8 +237,8 @@ async function fetchData() {
       module: query.module || undefined,
       success: query.success || undefined,
       keyword: query.keyword || undefined,
-      start_time: dateRange.value?.[0] || undefined,
-      end_time: dateRange.value?.[1] || undefined,
+      start_time: dateRange.value ? formatQueryTime(dateRange.value[0]) : undefined,
+      end_time: dateRange.value ? formatQueryTime(dateRange.value[1]) : undefined,
     }
     const res: any = await getOperationLogList(params)
     tableData.value = res.data.list || []
@@ -189,6 +246,11 @@ async function fetchData() {
   } finally {
     loading.value = false
   }
+}
+
+function handlePageSizeChange() {
+  page.value = 1
+  fetchData()
 }
 
 function handleSearch() {
@@ -199,7 +261,7 @@ function handleSearch() {
 function handleReset() {
   query.username = ''
   query.module = ''
-  query.success = ''
+  query.success = null
   query.keyword = ''
   dateRange.value = null
   page.value = 1
@@ -212,51 +274,73 @@ async function openDetail(row: any) {
     detail.value = res.data
     detailVisible.value = true
   } catch {
-    /* error handled in interceptor */
+    // The shared interceptor displays request errors.
   }
 }
 
-async function handleDelete(id: number) {
-  await deleteOperationLog(id)
-  ElMessage.success('删除成功')
-  fetchData()
+function confirmDelete(id: number) {
+  dialog.warning({
+    title: '删除日志',
+    content: '确认删除该条操作日志？',
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await deleteOperationLog(id)
+      message.success('删除成功')
+      fetchData()
+    },
+  })
 }
 
-async function handleClear() {
-  await ElMessageBox.confirm('确认清空全部操作日志？此操作不可恢复！', '警告', { type: 'warning' })
-  await clearOperationLogs()
-  ElMessage.success('已清空')
-  page.value = 1
-  fetchData()
+function confirmClear() {
+  dialog.error({
+    title: '清空操作日志',
+    content: '将永久删除全部操作日志，此操作无法恢复。',
+    positiveText: '确认清空',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await clearOperationLogs()
+      message.success('操作日志已清空')
+      page.value = 1
+      fetchData()
+    },
+  })
 }
 
-function methodType(method: string): 'success' | 'info' | 'warning' | 'danger' {
-  const map: Record<string, 'success' | 'info' | 'warning' | 'danger'> = {
+function methodType(method: string): TagType {
+  const types: Record<string, TagType> = {
     GET: 'info',
     POST: 'success',
     PUT: 'warning',
-    DELETE: 'danger',
+    PATCH: 'warning',
+    DELETE: 'error',
   }
-  return map[method] || 'info'
+  return types[method] || 'default'
 }
 
-function formatTime(t: string) {
-  if (!t) return ''
-  return new Date(t).toLocaleString('zh-CN', { hour12: false })
+function formatTime(value: string) {
+  if (!value) return ''
+  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
+function formatQueryTime(timestamp: number) {
+  const date = new Date(timestamp)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
 function parseParams(raw: string) {
   if (!raw) return null
   try {
-    const obj = JSON.parse(raw)
-    if (obj.body && typeof obj.body === 'string') {
+    const value = JSON.parse(raw)
+    if (value.body && typeof value.body === 'string') {
       try {
-        obj.body = JSON.parse(obj.body)
+        value.body = JSON.parse(value.body)
       } catch {
-        /* keep as string */
+        // Keep non-JSON request bodies as text.
       }
     }
-    return obj
+    return value
   } catch {
     return raw
   }
@@ -265,19 +349,14 @@ function parseParams(raw: string) {
 function isEmptyValue(value: any): boolean {
   if (value == null || value === '') return true
   if (Array.isArray(value)) return value.length === 0
-  if (typeof value === 'object') {
-    return Object.values(value).every(isEmptyValue)
-  }
+  if (typeof value === 'object') return Object.values(value).every(isEmptyValue)
   return false
 }
 
 function valueSize(value: any): string {
   if (value == null || value === '') return '空'
   if (Array.isArray(value)) return `${value.length} 项`
-  if (typeof value === 'object') {
-    const count = Object.keys(value).length
-    return `${count} 项`
-  }
+  if (typeof value === 'object') return `${Object.keys(value).length} 项`
   return '1 项'
 }
 
@@ -290,8 +369,8 @@ function formatParamSummary(raw: string) {
   if (isEmptyValue(value)) return '无'
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return Object.entries(value)
-      .filter(([, v]) => !isEmptyValue(v))
-      .map(([key, v]) => `${key}: ${valueSize(v)}`)
+      .filter(([, item]) => !isEmptyValue(item))
+      .map(([key, item]) => `${key}: ${valueSize(item)}`)
       .join('，')
   }
   return valueSize(value)
@@ -308,51 +387,84 @@ onMounted(fetchData)
 </script>
 
 <style scoped>
+.muted-text {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.filter-bar {
+  display: grid;
+  grid-template-columns: 130px 130px 120px 170px minmax(300px, 1fr) auto;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.date-filter {
+  width: 100%;
+}
+
 .param-empty {
-  color: #909399;
+  color: #98a2b3;
 }
 
 .param-viewer {
   width: 100%;
+  min-width: 0;
 }
 
 .param-summary {
-  color: #606266;
   margin-bottom: 6px;
-}
-
-.param-viewer :deep(.el-collapse) {
-  border-top: 0;
-  border-bottom: 0;
-}
-
-.param-viewer :deep(.el-collapse-item__header) {
-  height: 28px;
-  line-height: 28px;
-  color: #409eff;
-  border-bottom: 0;
-}
-
-.param-viewer :deep(.el-collapse-item__wrap) {
-  border-bottom: 0;
-}
-
-.param-viewer :deep(.el-collapse-item__content) {
-  padding-bottom: 0;
+  color: #667085;
 }
 
 .param-pre {
-  max-height: 260px;
+  max-height: 280px;
   overflow: auto;
   margin: 0;
-  padding: 10px 12px;
-  background: #f5f7fa;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
-  color: #303133;
+  padding: 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #1f2937;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.error-text {
+  color: #b91c1c;
+}
+
+@media (max-width: 1280px) {
+  .filter-bar {
+    grid-template-columns: repeat(4, minmax(120px, 1fr));
+  }
+
+  .date-filter {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 760px) {
+  .filter-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .date-filter {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .date-filter {
+    grid-column: auto;
+  }
 }
 </style>

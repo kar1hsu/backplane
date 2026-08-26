@@ -1,75 +1,174 @@
 <template>
-  <el-container class="layout-container">
-    <el-aside :width="isCollapse ? '64px' : '220px'" class="layout-aside">
-      <div class="logo">
-        <el-icon :size="24"><Monitor /></el-icon>
-        <span v-show="!isCollapse" class="logo-text">Backplane Admin</span>
-      </div>
-      <el-menu
-        :default-active="route.path"
-        :collapse="isCollapse"
-        router
-        background-color="#001529"
-        text-color="#ffffffa6"
-        active-text-color="#ffffff"
-        class="aside-menu"
+  <div class="app-shell">
+    <n-layout has-sider class="app-layout">
+      <n-layout-sider
+        v-if="!isMobile"
+        bordered
+        collapse-mode="width"
+        :collapsed="collapsed"
+        :collapsed-width="68"
+        :width="232"
+        :native-scrollbar="false"
+        class="sidebar"
       >
-        <el-menu-item index="/dashboard">
-          <el-icon><Odometer /></el-icon>
-          <template #title>控制台</template>
-        </el-menu-item>
-        <MenuItem v-for="menu in userStore.menuTree" :key="menu.id" :item="menu" />
-      </el-menu>
-    </el-aside>
-    <el-container>
-      <el-header class="layout-header">
-        <div class="header-left">
-          <el-icon class="collapse-btn" @click="isCollapse = !isCollapse" :size="20">
-            <Fold v-if="!isCollapse" />
-            <Expand v-else />
-          </el-icon>
+        <div class="brand" :class="{ compact: collapsed }">
+          <div class="brand-mark">B</div>
+          <div v-if="!collapsed" class="brand-copy">
+            <strong>Backplane</strong>
+            <span>Admin Console</span>
+          </div>
         </div>
-        <div class="header-right">
-          <el-dropdown @command="handleCommand">
-            <span class="user-info">
-              <el-icon><Avatar /></el-icon>
-              {{ userStore.userInfo?.nickname || userStore.userInfo?.username || '管理员' }}
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="logout">退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-      </el-header>
-      <TabBar ref="tabBarRef" @refresh="handleRefresh" />
-      <el-main class="layout-main">
-        <router-view v-slot="{ Component }">
-          <keep-alive :include="tabStore.cachedNames()">
-            <component :is="Component" v-if="showPage" :key="route.path" />
-          </keep-alive>
-        </router-view>
-      </el-main>
-    </el-container>
-  </el-container>
+        <n-menu
+          inverted
+          :collapsed="collapsed"
+          :collapsed-width="68"
+          :collapsed-icon-size="21"
+          :indent="20"
+          :options="menuOptions"
+          :value="route.path"
+          @update:value="handleMenuSelect"
+        />
+      </n-layout-sider>
+
+      <n-layout class="workspace">
+        <n-layout-header bordered class="topbar">
+          <div class="topbar-left">
+            <n-button quaternary circle aria-label="切换导航" @click="toggleNavigation">
+              <template #icon>
+                <n-icon :component="isMobile ? MenuOutline : collapsed ? ChevronForwardOutline : ChevronBackOutline" />
+              </template>
+            </n-button>
+            <div class="page-context">
+              <span class="context-label">工作台</span>
+              <strong>{{ route.meta.title || '控制台' }}</strong>
+            </div>
+          </div>
+
+          <n-dropdown :options="userOptions" trigger="click" @select="handleCommand">
+            <button class="user-trigger" type="button">
+              <n-avatar round size="small" color="#0f766e">{{ userInitial }}</n-avatar>
+              <span class="user-name">{{ displayName }}</span>
+              <n-icon :component="ChevronDownOutline" size="14" />
+            </button>
+          </n-dropdown>
+        </n-layout-header>
+
+        <TabBar ref="tabBarRef" @refresh="handleRefresh" />
+
+        <n-layout-content class="content-area" :native-scrollbar="false">
+          <div class="content-inner">
+            <router-view v-slot="{ Component }">
+              <keep-alive :include="tabStore.cachedNames()">
+                <component :is="Component" v-if="showPage" :key="route.path" />
+              </keep-alive>
+            </router-view>
+          </div>
+        </n-layout-content>
+      </n-layout>
+    </n-layout>
+
+    <n-drawer v-model:show="mobileMenuVisible" placement="left" :width="264">
+      <n-drawer-content class="mobile-drawer" body-content-style="padding: 0; background: #111827;" closable>
+        <template #header>
+          <div class="drawer-brand">
+            <div class="brand-mark">B</div>
+            <strong>Backplane</strong>
+          </div>
+        </template>
+        <n-menu
+          inverted
+          :indent="20"
+          :options="menuOptions"
+          :value="route.path"
+          @update:value="handleMenuSelect"
+        />
+      </n-drawer-content>
+    </n-drawer>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useUserStore } from '@/store/user'
+import { computed, h, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import type { MenuOption } from 'naive-ui'
+import {
+  NAvatar,
+  NButton,
+  NDrawer,
+  NDrawerContent,
+  NDropdown,
+  NIcon,
+  NLayout,
+  NLayoutContent,
+  NLayoutHeader,
+  NLayoutSider,
+  NMenu,
+} from 'naive-ui'
+import {
+  ChevronBackOutline,
+  ChevronDownOutline,
+  ChevronForwardOutline,
+  LogOutOutline,
+  MenuOutline,
+  PersonCircleOutline,
+  SpeedometerOutline,
+} from '@vicons/ionicons5'
+import { useUserStore, type MenuNode } from '@/store/user'
 import { useTabStore } from '@/store/tab'
+import { renderIcon, resolveIcon } from '@/utils/icons'
 import TabBar from './TabBar.vue'
-import MenuItem from './MenuItem.vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const tabStore = useTabStore()
-const isCollapse = ref(false)
+const collapsed = ref(false)
+const mobileMenuVisible = ref(false)
+const isMobile = ref(false)
 const showPage = ref(true)
 const tabBarRef = ref()
+let mediaQuery: MediaQueryList | null = null
+
+const displayName = computed(
+  () => userStore.userInfo?.nickname || userStore.userInfo?.username || '管理员',
+)
+const userInitial = computed(() => displayName.value.slice(0, 1).toUpperCase())
+
+function toMenuOption(item: MenuNode): MenuOption {
+  const hasChildren = Boolean(item.children?.length)
+  return {
+    key: item.path || `menu-${item.id}`,
+    label: hasChildren
+      ? item.name
+      : () => h(RouterLink, { to: item.path }, { default: () => item.name }),
+    icon: renderIcon(resolveIcon(item.icon)),
+    children: hasChildren ? item.children!.map(toMenuOption) : undefined,
+  }
+}
+
+const menuOptions = computed<MenuOption[]>(() => [
+  {
+    key: '/dashboard',
+    label: () => h(RouterLink, { to: '/dashboard' }, { default: () => '控制台' }),
+    icon: renderIcon(SpeedometerOutline),
+  },
+  ...userStore.menuTree.map(toMenuOption),
+])
+
+const userOptions = [
+  {
+    label: '个人信息',
+    key: 'profile',
+    icon: renderIcon(PersonCircleOutline),
+    disabled: true,
+  },
+  { type: 'divider' as const, key: 'divider' },
+  {
+    label: '退出登录',
+    key: 'logout',
+    icon: renderIcon(LogOutOutline),
+  },
+]
 
 async function handleRefresh() {
   showPage.value = false
@@ -77,106 +176,224 @@ async function handleRefresh() {
   showPage.value = true
 }
 
+function handleMenuSelect(key: string) {
+  if (key.startsWith('/')) router.push(key)
+  mobileMenuVisible.value = false
+}
+
+function toggleNavigation() {
+  if (isMobile.value) mobileMenuVisible.value = true
+  else collapsed.value = !collapsed.value
+}
+
+function syncViewport(event?: MediaQueryListEvent) {
+  isMobile.value = event?.matches ?? mediaQuery?.matches ?? false
+  if (!isMobile.value) mobileMenuVisible.value = false
+}
+
 onMounted(async () => {
+  mediaQuery = window.matchMedia('(max-width: 860px)')
+  syncViewport()
+  mediaQuery.addEventListener('change', syncViewport)
+
   if (userStore.token) {
     try {
-      if (!userStore.userInfo) {
-        await userStore.fetchProfile()
-      }
-      if (userStore.menuTree.length === 0) {
-        await userStore.fetchMenus()
-      }
-      if (userStore.permissions.length === 0) {
-        await userStore.fetchPermissions()
-      }
+      if (!userStore.userInfo) await userStore.fetchProfile()
+      if (userStore.menuTree.length === 0) await userStore.fetchMenus()
+      if (userStore.permissions.length === 0) await userStore.fetchPermissions()
     } catch {
-      // 401 已由 request 拦截器统一清登录态并跳转；
-      // 其他错误（网络抖动 / 5xx）不强制登出，避免把用户误踢下线
+      // Request errors and expired sessions are handled by the shared interceptor.
     }
   }
 })
 
+onUnmounted(() => mediaQuery?.removeEventListener('change', syncViewport))
+
 async function handleCommand(command: string) {
-  if (command === 'logout') {
-    await userStore.logout()
-    tabStore.closeAll()
-    router.push('/login')
-  }
+  if (command !== 'logout') return
+  await userStore.logout()
+  tabStore.closeAll()
+  router.push('/login')
 }
 </script>
 
 <style scoped>
-.layout-container {
-  height: 100vh;
+.app-shell,
+.app-layout,
+.workspace {
+  height: 100%;
 }
-.layout-aside {
-  height: 100vh;
+
+.sidebar {
+  background: #111827;
+}
+
+.sidebar :deep(.n-layout-sider-scroll-container) {
   display: flex;
   flex-direction: column;
-  background-color: #001529;
-  transition: width 0.3s;
-  overflow: hidden;
 }
-.logo {
-  height: 60px;
-  flex: 0 0 60px;
+
+.sidebar :deep(.n-menu) {
+  flex: 1;
+  padding: 10px 8px 20px;
+}
+
+.sidebar :deep(.n-menu--collapsed) {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.brand {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  gap: 11px;
+  height: 68px;
+  padding: 0 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   color: #fff;
-  font-size: 18px;
-  font-weight: bold;
-  border-bottom: 1px solid #ffffff1a;
+  overflow: hidden;
 }
-.logo-text {
+
+.brand.compact {
+  justify-content: center;
+  padding: 0;
+}
+
+.brand-mark {
+  display: grid;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 7px;
+  background: #14b8a6;
+  color: #062c2a;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
   white-space: nowrap;
 }
-.aside-menu {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  border-right: none;
+
+.brand-copy strong {
+  font-size: 16px;
 }
-.aside-menu::-webkit-scrollbar {
-  width: 6px;
+
+.brand-copy span {
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 11px;
 }
-.aside-menu::-webkit-scrollbar-thumb {
-  background: #ffffff24;
-  border-radius: 999px;
-}
-.aside-menu::-webkit-scrollbar-track {
-  background: transparent;
-}
-.layout-header {
+
+.topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fff;
+  height: 68px;
   padding: 0 20px;
+  background: #fff;
 }
-.header-left {
+
+.topbar-left,
+.page-context,
+.user-trigger,
+.drawer-brand {
   display: flex;
   align-items: center;
 }
-.collapse-btn {
+
+.topbar-left {
+  gap: 12px;
+  min-width: 0;
+}
+
+.page-context {
+  align-items: flex-start;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.page-context strong {
+  overflow: hidden;
+  max-width: 260px;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-label {
+  color: #98a2b3;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.user-trigger {
+  gap: 8px;
+  max-width: 220px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #344054;
   cursor: pointer;
 }
-.header-right {
-  display: flex;
-  align-items: center;
+
+.user-trigger:hover {
+  background: #f2f4f7;
 }
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 14px;
+
+.user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.layout-main {
-  background: #f5f5f5;
-  overflow-y: auto;
+
+.content-area {
+  height: calc(100vh - 109px);
+  background: #f4f6f8;
+}
+
+.content-inner {
+  min-width: 0;
+  padding: 20px;
+}
+
+.drawer-brand {
+  gap: 10px;
+  color: #fff;
+}
+
+.mobile-drawer :deep(.n-drawer-header) {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  background: #111827;
+}
+
+.mobile-drawer :deep(.n-drawer-header__close) {
+  color: #cbd5e1;
+}
+
+@media (max-width: 860px) {
+  .topbar {
+    height: 60px;
+    padding: 0 12px;
+  }
+
+  .content-area {
+    height: calc(100vh - 101px);
+  }
+
+  .content-inner {
+    padding: 12px;
+  }
+
+  .context-label,
+  .user-name {
+    display: none;
+  }
 }
 </style>

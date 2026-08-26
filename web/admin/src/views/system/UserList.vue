@@ -1,115 +1,220 @@
 <template>
-  <div>
-    <el-card>
+  <div class="page-shell">
+    <n-card class="page-panel" :bordered="true">
       <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <span>用户管理</span>
-          <el-button v-if="userStore.hasPermission('system:user:add')" type="primary" @click="openDialog()">新增用户</el-button>
+        <div class="page-toolbar">
+          <div>
+            <h1 class="page-title">用户管理</h1>
+            <span class="muted-text">管理后台账号、角色与启用状态</span>
+          </div>
+          <n-button v-if="canAdd" type="primary" @click="openDialog()">
+            <template #icon><n-icon :component="PersonAddOutline" /></template>
+            新增用户
+          </n-button>
         </div>
       </template>
-      <el-table :data="tableData" v-loading="loading" stripe>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="username" label="用户名" width="140" />
-        <el-table-column prop="nickname" label="昵称" width="140" />
-        <el-table-column prop="email" label="邮箱" />
-        <el-table-column prop="phone" label="手机号" width="140" />
-        <el-table-column label="角色" width="180">
-          <template #default="{ row }">
-            <el-tag v-for="r in row.roles" :key="r.id" size="small" style="margin-right: 4px">{{ r.name }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '正常' : '禁用' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column v-if="userStore.hasPermission('system:user:edit') || userStore.hasPermission('system:user:delete')" label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button v-if="userStore.hasPermission('system:user:edit')" link type="primary" @click="openDialog(row)">编辑</el-button>
-            <el-popconfirm v-if="userStore.hasPermission('system:user:delete')" title="确认删除？" @confirm="handleDelete(row.id)">
-              <template #reference>
-                <el-button link type="danger">删除</el-button>
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div style="margin-top: 16px; display: flex; justify-content: flex-end">
-        <el-pagination
-          v-model:current-page="page"
+
+      <n-data-table
+        remote
+        striped
+        :columns="columns"
+        :data="tableData"
+        :loading="loading"
+        :row-key="(row: any) => row.id"
+        :scroll-x="1040"
+      />
+
+      <div class="table-footer">
+        <n-pagination
+          v-model:page="page"
           v-model:page-size="pageSize"
-          :total="total"
+          :item-count="total"
           :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          @size-change="fetchData"
-          @current-change="fetchData"
+          show-size-picker
+          :prefix="({ itemCount }) => `共 ${itemCount} 条`"
+          @update:page="fetchData"
+          @update:page-size="handlePageSizeChange"
         />
       </div>
-    </el-card>
+    </n-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑用户' : '新增用户'" width="500px" destroy-on-close>
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" :disabled="!!form.id" />
-        </el-form-item>
-        <el-form-item label="密码" :prop="form.id ? '' : 'password'">
-          <el-input v-model="form.password" type="password" show-password :placeholder="form.id ? '留空则不修改' : ''" />
-        </el-form-item>
-        <el-form-item label="昵称">
-          <el-input v-model="form.nickname" />
-        </el-form-item>
-        <el-form-item label="邮箱">
-          <el-input v-model="form.email" />
-        </el-form-item>
-        <el-form-item label="手机号">
-          <el-input v-model="form.phone" />
-        </el-form-item>
-        <el-form-item label="角色">
-          <el-select v-model="form.role_ids" multiple placeholder="请选择角色" style="width: 100%">
-            <el-option v-for="r in allRoles" :key="r.id" :label="r.name" :value="r.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-radio-group v-model="form.status">
-            <el-radio :value="1">正常</el-radio>
-            <el-radio :value="0">禁用</el-radio>
-          </el-radio-group>
-        </el-form-item>
-      </el-form>
+    <n-modal
+      v-model:show="dialogVisible"
+      preset="card"
+      :title="form.id ? '编辑用户' : '新增用户'"
+      :style="modalStyle"
+      :mask-closable="false"
+    >
+      <n-form ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="76">
+        <n-form-item label="用户名" path="username">
+          <n-input v-model:value="form.username" :disabled="Boolean(form.id)" placeholder="登录用户名" />
+        </n-form-item>
+        <n-form-item label="密码" :path="form.id ? undefined : 'password'">
+          <n-input
+            v-model:value="form.password"
+            type="password"
+            show-password-on="click"
+            :placeholder="form.id ? '留空则不修改' : '至少 6 位'"
+          />
+        </n-form-item>
+        <n-form-item label="昵称">
+          <n-input v-model:value="form.nickname" placeholder="显示名称" />
+        </n-form-item>
+        <n-form-item label="邮箱">
+          <n-input v-model:value="form.email" placeholder="name@example.com" />
+        </n-form-item>
+        <n-form-item label="手机号">
+          <n-input v-model:value="form.phone" placeholder="手机号" />
+        </n-form-item>
+        <n-form-item label="角色">
+          <n-select
+            v-model:value="form.role_ids"
+            multiple
+            filterable
+            :options="roleOptions"
+            placeholder="请选择角色"
+          />
+        </n-form-item>
+        <n-form-item label="状态">
+          <n-radio-group v-model:value="form.status">
+            <n-space>
+              <n-radio :value="1">正常</n-radio>
+              <n-radio :value="0">禁用</n-radio>
+            </n-space>
+          </n-radio-group>
+        </n-form-item>
+      </n-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <div class="modal-actions">
+          <n-button @click="dialogVisible = false">取消</n-button>
+          <n-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</n-button>
+        </div>
       </template>
-    </el-dialog>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, type FormInstance } from 'element-plus'
-import { getUserList, createUser, updateUser, deleteUser } from '@/api/user'
+import { computed, h, onMounted, reactive, ref } from 'vue'
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NForm,
+  NFormItem,
+  NIcon,
+  NInput,
+  NModal,
+  NPagination,
+  NRadio,
+  NRadioGroup,
+  NSelect,
+  NSpace,
+  NTag,
+  type DataTableColumns,
+  type FormInst,
+  type FormRules,
+} from 'naive-ui'
+import { CreateOutline, PersonAddOutline, TrashOutline } from '@vicons/ionicons5'
+import { createUser, deleteUser, getUserList, updateUser } from '@/api/user'
 import { getAllRoles } from '@/api/role'
+import TableActionButton from '@/components/TableActionButton.vue'
 import { useUserStore } from '@/store/user'
+import { dialog, message } from '@/utils/ui'
 
 const userStore = useUserStore()
-
+const canAdd = computed(() => userStore.hasPermission('system:user:add'))
+const canEdit = computed(() => userStore.hasPermission('system:user:edit'))
+const canDelete = computed(() => userStore.hasPermission('system:user:delete'))
 const loading = ref(false)
 const submitLoading = ref(false)
 const dialogVisible = ref(false)
-const formRef = ref<FormInstance>()
+const formRef = ref<FormInst | null>(null)
 const tableData = ref<any[]>([])
 const allRoles = ref<any[]>([])
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const modalStyle = { width: 'min(520px, calc(100vw - 32px))' }
 
-const defaultForm = { id: 0, username: '', password: '', nickname: '', email: '', phone: '', status: 1, role_ids: [] as number[] }
-const form = reactive({ ...defaultForm })
-
-const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+const defaultForm = {
+  id: 0,
+  username: '',
+  password: '',
+  nickname: '',
+  email: '',
+  phone: '',
+  status: 1,
+  role_ids: [] as number[],
 }
+const form = reactive({ ...defaultForm })
+const roleOptions = computed(() => allRoles.value.map((role) => ({ label: role.name, value: role.id })))
+const rules = computed<FormRules>(() => ({
+  username: { required: true, message: '请输入用户名', trigger: ['input', 'blur'] },
+  password: form.id
+    ? []
+    : [{ required: true, message: '请输入密码', trigger: ['input', 'blur'] }],
+}))
+
+const columns = computed<DataTableColumns<any>>(() => {
+  const items: DataTableColumns<any> = [
+    { title: 'ID', key: 'id', width: 72 },
+    { title: '用户名', key: 'username', width: 130 },
+    { title: '昵称', key: 'nickname', width: 130, render: (row) => row.nickname || '-' },
+    { title: '邮箱', key: 'email', minWidth: 180, ellipsis: { tooltip: true } },
+    { title: '手机号', key: 'phone', width: 140, render: (row) => row.phone || '-' },
+    {
+      title: '角色',
+      key: 'roles',
+      width: 190,
+      render: (row) =>
+        h(
+          NSpace,
+          { size: 4 },
+          { default: () => (row.roles || []).map((role: any) => h(NTag, { size: 'small', bordered: false }, { default: () => role.name })) },
+        ),
+    },
+    {
+      title: '状态',
+      key: 'status',
+      width: 86,
+      render: (row) =>
+        h(
+          NTag,
+          { size: 'small', bordered: false, type: row.status === 1 ? 'success' : 'error' },
+          { default: () => (row.status === 1 ? '正常' : '禁用') },
+        ),
+    },
+  ]
+
+  if (canEdit.value || canDelete.value) {
+    items.push({
+      title: '操作',
+      key: 'actions',
+      width: 96,
+      fixed: 'right',
+      render: (row) =>
+        h('div', { class: 'table-actions' }, [
+            canEdit.value
+              ? h(TableActionButton, {
+                  label: '编辑',
+                  icon: CreateOutline,
+                  onClick: () => openDialog(row),
+                })
+              : null,
+            canDelete.value
+              ? h(TableActionButton, {
+                  label: '删除',
+                  icon: TrashOutline,
+                  type: 'error',
+                  onClick: () => confirmDelete(row.id),
+                })
+              : null,
+          ]),
+    })
+  }
+  return items
+})
 
 async function fetchData() {
   loading.value = true
@@ -122,15 +227,22 @@ async function fetchData() {
   }
 }
 
+function handlePageSizeChange() {
+  page.value = 1
+  fetchData()
+}
+
 async function fetchRoles() {
   try {
     const res: any = await getAllRoles()
     allRoles.value = res.data || []
-  } catch { /* ignore */ }
+  } catch {
+    // The shared interceptor displays request errors.
+  }
 }
 
 function openDialog(row?: any) {
-  Object.assign(form, defaultForm)
+  Object.assign(form, { ...defaultForm, role_ids: [] })
   if (row) {
     Object.assign(form, {
       id: row.id,
@@ -139,7 +251,7 @@ function openDialog(row?: any) {
       email: row.email,
       phone: row.phone,
       status: row.status,
-      role_ids: (row.roles || []).map((r: any) => r.id),
+      role_ids: (row.roles || []).map((role: any) => role.id),
       password: '',
     })
   }
@@ -147,7 +259,12 @@ function openDialog(row?: any) {
 }
 
 async function handleSubmit() {
-  await formRef.value?.validate()
+  try {
+    await formRef.value?.validate()
+  } catch {
+    return
+  }
+
   submitLoading.value = true
   try {
     if (form.id) {
@@ -157,7 +274,7 @@ async function handleSubmit() {
     } else {
       await createUser(form)
     }
-    ElMessage.success('操作成功')
+    message.success('操作成功')
     dialogVisible.value = false
     fetchData()
   } finally {
@@ -165,10 +282,18 @@ async function handleSubmit() {
   }
 }
 
-async function handleDelete(id: number) {
-  await deleteUser(id)
-  ElMessage.success('删除成功')
-  fetchData()
+function confirmDelete(id: number) {
+  dialog.warning({
+    title: '删除用户',
+    content: '确认删除该用户？此操作无法撤销。',
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await deleteUser(id)
+      message.success('删除成功')
+      fetchData()
+    },
+  })
 }
 
 onMounted(() => {
@@ -176,3 +301,17 @@ onMounted(() => {
   fetchRoles()
 })
 </script>
+
+<style scoped>
+.muted-text {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+</style>

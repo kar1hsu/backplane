@@ -1,126 +1,229 @@
 <template>
-  <div>
-    <el-card>
+  <div class="page-shell">
+    <n-card class="page-panel" :bordered="true">
       <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <span>角色管理</span>
-          <el-button v-if="userStore.hasPermission('system:role:add')" type="primary" @click="openDialog()">新增角色</el-button>
+        <div class="page-toolbar">
+          <div>
+            <h1 class="page-title">角色管理</h1>
+            <span class="muted-text">配置角色、状态与菜单权限范围</span>
+          </div>
+          <n-button v-if="canAdd" type="primary" @click="openDialog()">
+            <template #icon><n-icon :component="AddOutline" /></template>
+            新增角色
+          </n-button>
         </div>
       </template>
-      <el-table :data="tableData" v-loading="loading" stripe>
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="角色名称" width="160" />
-        <el-table-column prop="code" label="角色编码" width="160" />
-        <el-table-column prop="sort" label="排序" width="80" />
-        <el-table-column label="状态" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '正常' : '禁用' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="remark" label="备注" />
-        <el-table-column v-if="userStore.hasPermission('system:role:edit') || userStore.hasPermission('system:role:delete')" label="操作" width="240" fixed="right">
-          <template #default="{ row }">
-            <el-button v-if="userStore.hasPermission('system:role:edit')" link type="primary" @click="openDialog(row)">编辑</el-button>
-            <el-button v-if="userStore.hasPermission('system:role:edit')" link type="primary" @click="openMenuDialog(row)">分配菜单</el-button>
-            <el-popconfirm v-if="userStore.hasPermission('system:role:delete')" title="确认删除？" @confirm="handleDelete(row.id)">
-              <template #reference>
-                <el-button link type="danger">删除</el-button>
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div style="margin-top: 16px; display: flex; justify-content: flex-end">
-        <el-pagination
-          v-model:current-page="page"
+
+      <n-data-table
+        remote
+        striped
+        :columns="columns"
+        :data="tableData"
+        :loading="loading"
+        :row-key="(row: any) => row.id"
+        :scroll-x="900"
+      />
+      <div class="table-footer">
+        <n-pagination
+          v-model:page="page"
           v-model:page-size="pageSize"
-          :total="total"
+          :item-count="total"
           :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          @size-change="fetchData"
-          @current-change="fetchData"
+          show-size-picker
+          :prefix="({ itemCount }) => `共 ${itemCount} 条`"
+          @update:page="fetchData"
+          @update:page-size="handlePageSizeChange"
         />
       </div>
-    </el-card>
+    </n-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑角色' : '新增角色'" width="500px" destroy-on-close>
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="auto">
-        <el-form-item label="角色名称" prop="name">
-          <el-input v-model="form.name" />
-        </el-form-item>
-        <el-form-item label="角色编码" prop="code">
-          <el-input v-model="form.code" :disabled="!!form.id" />
-        </el-form-item>
-        <el-form-item label="排序">
-          <el-input-number v-model="form.sort" :min="0" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-radio-group v-model="form.status">
-            <el-radio :value="1">正常</el-radio>
-            <el-radio :value="0">禁用</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" />
-        </el-form-item>
-      </el-form>
+    <n-modal
+      v-model:show="dialogVisible"
+      preset="card"
+      :title="form.id ? '编辑角色' : '新增角色'"
+      :style="modalStyle"
+      :mask-closable="false"
+    >
+      <n-form ref="formRef" :model="form" :rules="rules" label-placement="left" label-width="84">
+        <n-form-item label="角色名称" path="name">
+          <n-input v-model:value="form.name" placeholder="如：内容运营" />
+        </n-form-item>
+        <n-form-item label="角色编码" path="code">
+          <n-input v-model:value="form.code" :disabled="Boolean(form.id)" placeholder="如：operator" />
+        </n-form-item>
+        <n-form-item label="排序">
+          <n-input-number v-model:value="form.sort" :min="0" />
+        </n-form-item>
+        <n-form-item label="状态">
+          <n-radio-group v-model:value="form.status">
+            <n-space>
+              <n-radio :value="1">正常</n-radio>
+              <n-radio :value="0">禁用</n-radio>
+            </n-space>
+          </n-radio-group>
+        </n-form-item>
+        <n-form-item label="备注">
+          <n-input v-model:value="form.remark" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" />
+        </n-form-item>
+      </n-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <div class="modal-actions">
+          <n-button @click="dialogVisible = false">取消</n-button>
+          <n-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</n-button>
+        </div>
       </template>
-    </el-dialog>
+    </n-modal>
 
-    <el-dialog v-model="menuDialogVisible" title="分配菜单权限" width="500px" destroy-on-close>
-      <el-tree
-        ref="menuTreeRef"
-        :data="menuTreeData"
-        show-checkbox
-        check-strictly
-        default-expand-all
-        node-key="id"
-        :default-checked-keys="checkedMenuIds"
-        :props="{ label: 'name', children: 'children' }"
-        @check="handleTreeCheck"
-      />
+    <n-modal
+      v-model:show="menuDialogVisible"
+      preset="card"
+      title="分配菜单权限"
+      :style="modalStyle"
+      :mask-closable="false"
+    >
+      <div class="permission-summary">
+        已选择 <strong>{{ checkedMenuIds.length }}</strong> 项菜单与按钮权限
+      </div>
+      <div class="tree-panel">
+        <n-tree
+          block-line
+          cascade
+          checkable
+          default-expand-all
+          :data="menuTreeData"
+          :checked-keys="checkedMenuIds"
+          :key-field="'id'"
+          :label-field="'name'"
+          :children-field="'children'"
+          check-strategy="all"
+          @update:checked-keys="handleCheckedKeysUpdate"
+        />
+      </div>
       <template #footer>
-        <el-button @click="menuDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="menuSubmitLoading" @click="handleMenuSubmit">确定</el-button>
+        <div class="modal-actions">
+          <n-button @click="menuDialogVisible = false">取消</n-button>
+          <n-button type="primary" :loading="menuSubmitLoading" @click="handleMenuSubmit">保存权限</n-button>
+        </div>
       </template>
-    </el-dialog>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, type FormInstance } from 'element-plus'
-import { getRoleList, createRole, updateRole, deleteRole, setRoleMenus, getRoleById } from '@/api/role'
+import { computed, h, onMounted, reactive, ref } from 'vue'
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NForm,
+  NFormItem,
+  NIcon,
+  NInput,
+  NInputNumber,
+  NModal,
+  NPagination,
+  NRadio,
+  NRadioGroup,
+  NSpace,
+  NTag,
+  NTree,
+  type DataTableColumns,
+  type FormInst,
+  type FormRules,
+  type TreeOption,
+} from 'naive-ui'
+import { AddOutline, CreateOutline, ShieldCheckmarkOutline, TrashOutline } from '@vicons/ionicons5'
+import { createRole, deleteRole, getRoleById, getRoleList, setRoleMenus, updateRole } from '@/api/role'
 import { getMenuTree } from '@/api/menu'
+import TableActionButton from '@/components/TableActionButton.vue'
 import { useUserStore } from '@/store/user'
+import { dialog, message } from '@/utils/ui'
 
 const userStore = useUserStore()
-
+const canAdd = computed(() => userStore.hasPermission('system:role:add'))
+const canEdit = computed(() => userStore.hasPermission('system:role:edit'))
+const canDelete = computed(() => userStore.hasPermission('system:role:delete'))
 const loading = ref(false)
 const submitLoading = ref(false)
 const menuSubmitLoading = ref(false)
 const dialogVisible = ref(false)
 const menuDialogVisible = ref(false)
-const formRef = ref<FormInstance>()
-const menuTreeRef = ref<any>()
+const formRef = ref<FormInst | null>(null)
 const tableData = ref<any[]>([])
-const menuTreeData = ref<any[]>([])
-const checkedMenuIds = ref<number[]>([])
+const menuTreeData = ref<TreeOption[]>([])
+const checkedMenuIds = ref<Array<string | number>>([])
 const currentRoleId = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const modalStyle = { width: 'min(540px, calc(100vw - 32px))' }
 
 const defaultForm = { id: 0, name: '', code: '', sort: 0, status: 1, remark: '' }
 const form = reactive({ ...defaultForm })
-
-const rules = {
-  name: [{ required: true, message: '请输入角色名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入角色编码', trigger: 'blur' }],
+const rules: FormRules = {
+  name: { required: true, message: '请输入角色名称', trigger: ['input', 'blur'] },
+  code: { required: true, message: '请输入角色编码', trigger: ['input', 'blur'] },
 }
+
+const columns = computed<DataTableColumns<any>>(() => {
+  const items: DataTableColumns<any> = [
+    { title: 'ID', key: 'id', width: 72 },
+    { title: '角色名称', key: 'name', width: 160 },
+    {
+      title: '角色编码',
+      key: 'code',
+      width: 170,
+      render: (row) => h('span', { class: 'code-text' }, row.code),
+    },
+    { title: '排序', key: 'sort', width: 80 },
+    {
+      title: '状态',
+      key: 'status',
+      width: 86,
+      render: (row) =>
+        h(NTag, { size: 'small', bordered: false, type: row.status === 1 ? 'success' : 'error' }, {
+          default: () => (row.status === 1 ? '正常' : '禁用'),
+        }),
+    },
+    { title: '备注', key: 'remark', minWidth: 180, ellipsis: { tooltip: true } },
+  ]
+
+  if (canEdit.value || canDelete.value) {
+    items.push({
+      title: '操作',
+      key: 'actions',
+      width: 128,
+      fixed: 'right',
+      render: (row) =>
+        h('div', { class: 'table-actions' }, [
+            canEdit.value
+              ? h(TableActionButton, {
+                  label: '编辑',
+                  icon: CreateOutline,
+                  onClick: () => openDialog(row),
+                })
+              : null,
+            canEdit.value
+              ? h(TableActionButton, {
+                  label: '菜单权限',
+                  icon: ShieldCheckmarkOutline,
+                  type: 'primary',
+                  onClick: () => openMenuDialog(row),
+                })
+              : null,
+            canDelete.value
+              ? h(TableActionButton, {
+                  label: '删除',
+                  icon: TrashOutline,
+                  type: 'error',
+                  onClick: () => confirmDelete(row.id),
+                })
+              : null,
+          ]),
+    })
+  }
+  return items
+})
 
 async function fetchData() {
   loading.value = true
@@ -133,24 +236,46 @@ async function fetchData() {
   }
 }
 
+function handlePageSizeChange() {
+  page.value = 1
+  fetchData()
+}
+
 function openDialog(row?: any) {
   Object.assign(form, defaultForm)
   if (row) {
-    Object.assign(form, { id: row.id, name: row.name, code: row.code, sort: row.sort, status: row.status, remark: row.remark })
+    Object.assign(form, {
+      id: row.id,
+      name: row.name,
+      code: row.code,
+      sort: row.sort,
+      status: row.status,
+      remark: row.remark,
+    })
   }
   dialogVisible.value = true
 }
 
 async function handleSubmit() {
-  await formRef.value?.validate()
+  try {
+    await formRef.value?.validate()
+  } catch {
+    return
+  }
+
   submitLoading.value = true
   try {
     if (form.id) {
-      await updateRole(form.id, { name: form.name, sort: form.sort, status: form.status, remark: form.remark })
+      await updateRole(form.id, {
+        name: form.name,
+        sort: form.sort,
+        status: form.status,
+        remark: form.remark,
+      })
     } else {
       await createRole(form)
     }
-    ElMessage.success('操作成功')
+    message.success('操作成功')
     dialogVisible.value = false
     fetchData()
   } finally {
@@ -158,70 +283,27 @@ async function handleSubmit() {
   }
 }
 
-async function handleDelete(id: number) {
-  await deleteRole(id)
-  ElMessage.success('删除成功')
-  fetchData()
+function confirmDelete(id: number) {
+  dialog.warning({
+    title: '删除角色',
+    content: '确认删除该角色？已关联账号可能失去相应权限。',
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      await deleteRole(id)
+      message.success('删除成功')
+      fetchData()
+    },
+  })
 }
 
 function collectAllIds(menus: any[]): number[] {
   const ids: number[] = []
-  for (const m of menus) {
-    ids.push(m.id)
-    if (m.children?.length) ids.push(...collectAllIds(m.children))
+  for (const menu of menus) {
+    ids.push(menu.id)
+    if (menu.children?.length) ids.push(...collectAllIds(menu.children))
   }
   return ids
-}
-
-// Build a parentId map from tree data for upward traversal
-function buildParentMap(tree: any[], parentId: number | null = null, map: Map<number, number | null> = new Map()) {
-  for (const node of tree) {
-    map.set(node.id, parentId)
-    if (node.children?.length) buildParentMap(node.children, node.id, map)
-  }
-  return map
-}
-
-// Build a children map for downward traversal
-function buildChildrenMap(tree: any[], map: Map<number, number[]> = new Map()) {
-  for (const node of tree) {
-    const childIds = (node.children || []).map((c: any) => c.id)
-    map.set(node.id, childIds)
-    if (node.children?.length) buildChildrenMap(node.children, map)
-  }
-  return map
-}
-
-function getAllDescendants(id: number, childrenMap: Map<number, number[]>): number[] {
-  const ids: number[] = []
-  for (const childId of childrenMap.get(id) || []) {
-    ids.push(childId)
-    ids.push(...getAllDescendants(childId, childrenMap))
-  }
-  return ids
-}
-
-function handleTreeCheck(node: any, data: { checkedKeys: number[] }) {
-  const tree = menuTreeRef.value
-  if (!tree) return
-
-  const isChecked = data.checkedKeys.includes(node.id)
-  const parentMap = buildParentMap(menuTreeData.value)
-  const childrenMap = buildChildrenMap(menuTreeData.value)
-
-  if (isChecked) {
-    // Check all ancestors
-    let pid = parentMap.get(node.id)
-    while (pid != null) {
-      tree.setChecked(pid, true, false)
-      pid = parentMap.get(pid)
-    }
-  } else {
-    // Uncheck all descendants
-    for (const descId of getAllDescendants(node.id, childrenMap)) {
-      tree.setChecked(descId, false, false)
-    }
-  }
 }
 
 async function openMenuDialog(row: any) {
@@ -229,23 +311,60 @@ async function openMenuDialog(row: any) {
   try {
     const [treeRes, roleRes]: any[] = await Promise.all([getMenuTree(), getRoleById(row.id)])
     menuTreeData.value = treeRes.data || []
-    const roleMenus = (roleRes.data?.menus || []) as any[]
-    checkedMenuIds.value = collectAllIds(roleMenus)
-  } catch { /* ignore */ }
-  menuDialogVisible.value = true
+    checkedMenuIds.value = collectAllIds(roleRes.data?.menus || [])
+    menuDialogVisible.value = true
+  } catch {
+    // The shared interceptor displays request errors.
+  }
+}
+
+function handleCheckedKeysUpdate(keys: Array<string | number>) {
+  checkedMenuIds.value = keys
 }
 
 async function handleMenuSubmit() {
   menuSubmitLoading.value = true
   try {
-    const checked = menuTreeRef.value?.getCheckedKeys() || []
-    await setRoleMenus(currentRoleId.value, checked as number[])
-    ElMessage.success('菜单分配成功')
+    await setRoleMenus(currentRoleId.value, checkedMenuIds.value.map(Number))
+    message.success('菜单权限已保存')
     menuDialogVisible.value = false
   } finally {
     menuSubmitLoading.value = false
   }
 }
 
-onMounted(() => fetchData())
+onMounted(fetchData)
 </script>
+
+<style scoped>
+.muted-text {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.permission-summary {
+  margin-bottom: 12px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.permission-summary strong {
+  color: #0f766e;
+}
+
+.tree-panel {
+  max-height: 440px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  background: #fafbfc;
+}
+</style>

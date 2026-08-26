@@ -2,7 +2,9 @@
 
 简体中文 | [English](README.en-US.md)
 
-Backplane 是一个模块化的 Go 后台管理框架。后端基于 **Gin + GORM + Casbin + JWT**，前端 **Vue 3 + Element Plus** 通过 `embed` 编进二进制——一次 `go build` 即可交付整个应用。开箱即用：**按钮级 RBAC**（自动生成 Casbin 策略）、**数据库驱动的操作审计日志**、**运行时系统配置**（DB 为准、Redis 缓存、多实例即时生效），以及基于 **Asynq 的分布式任务队列**（含定时任务）。
+如果这个项目对你有帮助，欢迎在 [GitHub](https://github.com/kar1hsu/backplane) 点一个 Star，感谢支持。
+
+Backplane 是一个模块化的 Go 后台管理框架。后端基于 **Gin + GORM + Casbin + JWT**，前端 **Vue 3 + Naive UI** 通过 `embed` 编进二进制——一次 `go build` 即可交付整个应用。开箱即用：**按钮级 RBAC**（自动生成 Casbin 策略）、**数据库驱动的操作审计日志**、**运行时系统配置**（DB 为准、Redis 缓存、多实例即时生效），以及基于 **Asynq 的分布式任务队列**（含定时任务）。
 
 ## 技术栈
 
@@ -17,7 +19,7 @@ Backplane 是一个模块化的 Go 后台管理框架。后端基于 **Gin + GOR
 | 缓存 | Redis (go-redis) | Token 黑名单、权限缓存、登录限流 |
 | 任务队列 | Asynq | 分布式消息队列 + 定时任务，基于 Redis |
 | 密码 | bcrypt | 密码哈希加密 |
-| 前端 | Vue 3 + Element Plus + Vite | 管理面板，通过 Go embed 嵌入 |
+| 前端 | Vue 3 + Naive UI + Vite | 管理面板，通过 Go embed 嵌入 |
 | 部署 | Docker + docker-compose | 一键容器化部署 |
 
 ## 功能特性
@@ -37,7 +39,7 @@ Backplane 是一个模块化的 Go 后台管理框架。后端基于 **Gin + GOR
 - **系统配置** - 数据库驱动的运行时配置，DB 为准 + Redis 共享缓存，改完即时生效、多实例一致，代码内类型化读取
 - **消息队列** - 基于 Asynq + Redis 的分布式任务队列，支持即时/延迟/唯一任务
 - **定时任务** - Asynq Scheduler，cron 语法，独立 Scheduler 进程；可选 Unique 去重防多实例重复投递
-- **前端面板** - Element Plus 管理界面，通过 Go embed 内嵌到二进制
+- **前端面板** - Naive UI 管理界面，支持响应式导航，通过 Go embed 内嵌到二进制
 - **多数据库** - 通过配置切换 MySQL 或 PostgreSQL
 
 ## 快速开始
@@ -682,6 +684,12 @@ router := server.NewRouter(
     yourmodule.New(), // 新模块
 )
 ```
+
+## 致谢
+
+管理端 UI 基于 [Naive UI](https://www.naiveui.com/) 重写，图标使用其推荐的 [xicons](https://www.xicons.org/)。感谢 Naive UI 团队提供完整、可定制且类型友好的 Vue 3 组件库。
+
+也欢迎为 [Naive UI](https://github.com/tusen-ai/naive-ui) 和 [Backplane](https://github.com/kar1hsu/backplane) 点 Star，支持开源项目持续发展。
 
 ## License
 

@@ -2,7 +2,9 @@
 
 English | [简体中文](README.md)
 
-Backplane is a modular admin/back-office framework for Go. It pairs a **Gin + GORM + Casbin + JWT** backend with a **Vue 3 + Element Plus** panel compiled straight into the binary — a single `go build` ships the whole app. Out of the box: **button-level RBAC** with auto-generated Casbin policies, a **DB-backed operation/audit log**, **runtime system config** (DB as source of truth, Redis-cached, instant multi-instance updates), and an **Asynq distributed task queue** with cron.
+If Backplane helps your work, please consider giving it a [GitHub Star](https://github.com/kar1hsu/backplane). Thank you for the support.
+
+Backplane is a modular admin/back-office framework for Go. It pairs a **Gin + GORM + Casbin + JWT** backend with a **Vue 3 + Naive UI** panel compiled straight into the binary — a single `go build` ships the whole app. Out of the box: **button-level RBAC** with auto-generated Casbin policies, a **DB-backed operation/audit log**, **runtime system config** (DB as source of truth, Redis-cached, instant multi-instance updates), and an **Asynq distributed task queue** with cron.
 
 ## Tech Stack
 
@@ -17,7 +19,7 @@ Backplane is a modular admin/back-office framework for Go. It pairs a **Gin + GO
 | Cache | Redis (go-redis) | Token blacklist, permission cache, login throttling, config cache |
 | Task queue | Asynq | Distributed queue + cron, backed by Redis |
 | Passwords | bcrypt | Password hashing |
-| Frontend | Vue 3 + Element Plus + Vite | Admin panel, embedded via Go embed |
+| Frontend | Vue 3 + Naive UI + Vite | Admin panel, embedded via Go embed |
 | Deployment | Docker + docker-compose | One-command containerized deploy |
 
 ## Features
@@ -34,7 +36,7 @@ Backplane is a modular admin/back-office framework for Go. It pairs a **Gin + GO
 - **System config** — DB-driven runtime config with a DB-as-source-of-truth + Redis shared cache; changes take effect instantly and stay consistent across instances; typed access from code
 - **Message queue** — Asynq + Redis distributed task queue (immediate / delayed / unique tasks)
 - **Cron jobs** — Asynq Scheduler with cron syntax in a dedicated process; optional `Unique` dedup against multi-instance double-enqueue
-- **Embedded panel** — Element Plus UI compiled into the Go binary via `embed`
+- **Embedded panel** — responsive Naive UI console compiled into the Go binary via `embed`
 - **Multi-database** — switch between MySQL and PostgreSQL via config
 
 ## Quick Start
@@ -665,6 +667,12 @@ router := server.NewRouter(
     yourmodule.New(), // new module
 )
 ```
+
+## Acknowledgements
+
+The admin console is rebuilt with [Naive UI](https://www.naiveui.com/) and uses its recommended [xicons](https://www.xicons.org/) icon set. Thanks to the Naive UI team for a complete, customizable, and type-friendly Vue 3 component library.
+
+Please consider starring both [Naive UI](https://github.com/tusen-ai/naive-ui) and [Backplane](https://github.com/kar1hsu/backplane) to support their continued development.
 
 ## License
 
