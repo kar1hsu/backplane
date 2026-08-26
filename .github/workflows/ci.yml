@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - master
+      - naive-ui
   pull_request:
     branches:
       - master
+      - naive-ui
   workflow_dispatch:
 
 permissions:
