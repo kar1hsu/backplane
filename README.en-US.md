@@ -4,6 +4,10 @@ English | [简体中文](README.md)
 
 Backplane is a modular admin/back-office framework for Go. It pairs a **Gin + GORM + Casbin + JWT** backend with a **Vue 3 + Element Plus** panel compiled straight into the binary — a single `go build` ships the whole app. Out of the box: **button-level RBAC** with auto-generated Casbin policies, a **DB-backed operation/audit log**, **runtime system config** (DB as source of truth, Redis-cached, instant multi-instance updates), and an **Asynq distributed task queue** with cron.
 
+> **Naive UI redesign branch:** The redesigned admin panel is available on the [`naive-ui`](https://github.com/kar1hsu/backplane/tree/naive-ui) branch, with new login, application layout, and system-management views. Run `git switch naive-ui` to try it locally.
+
+If Backplane is useful to you, please consider giving the [GitHub repository](https://github.com/kar1hsu/backplane) a **Star**. It helps the project keep improving.
+
 ## Tech Stack
 
 | Layer | Technology | Purpose |
