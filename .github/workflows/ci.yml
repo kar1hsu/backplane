@@ -30,6 +30,11 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
+      - name: Prepare embedded frontend placeholder
+        run: |
+          mkdir -p web/admin/dist
+          printf '<!doctype html><title>CI placeholder</title>\n' > web/admin/dist/index.html
+
       - name: Test
         run: go test ./...
 
@@ -48,6 +53,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
+
+      - name: Prepare embedded frontend placeholder
+        run: |
+          mkdir -p web/admin/dist
+          printf '<!doctype html><title>CI placeholder</title>\n' > web/admin/dist/index.html
 
       - name: Lint
         uses: golangci/golangci-lint-action@v9
