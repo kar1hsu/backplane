@@ -37,6 +37,6 @@ func NewManager(cfg ManagerConfig) *Manager {
 
 func (m *Manager) Close() {
 	if m.Client != nil {
-		m.Client.Close()
+		_ = m.Client.Close()
 	}
 }

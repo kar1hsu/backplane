@@ -1,5 +1,7 @@
 # Backplane - Go 模块化后台管理框架
 
+[![CI](https://github.com/kar1hsu/backplane/actions/workflows/ci.yml/badge.svg)](https://github.com/kar1hsu/backplane/actions/workflows/ci.yml)
+
 简体中文 | [English](README.en-US.md)
 
 如果这个项目对你有帮助，欢迎在 [GitHub](https://github.com/kar1hsu/backplane) 点一个 Star，感谢支持。

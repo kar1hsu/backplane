@@ -57,7 +57,7 @@ func GetUserPermissions(userID uint) ([]string, bool) {
 }
 
 func ClearUserPermissions(userID uint) {
-	store.Del(permKey(userID))
+	_ = store.Del(permKey(userID))
 }
 
 func ClearAllPermissionCache() {
@@ -69,7 +69,7 @@ func ClearAllPermissionCache() {
 		// keys from Scan already have the prefix, use raw client Del
 		// but since our store.Del adds prefix again, we need to strip it
 		// Instead, just delete by known user pattern
-		store.Del(k)
+		_ = store.Del(k)
 	}
 }
 
@@ -88,7 +88,10 @@ func IncrLoginFail(username, ip string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	store.Expire(k, loginLimitWindow)
+	if err := store.Expire(k, loginLimitWindow); err != nil {
+		_ = store.Del(k)
+		return 0, err
+	}
 	return count, nil
 }
 
@@ -98,12 +101,14 @@ func IsLoginLocked(username, ip string) bool {
 		return false
 	}
 	var count int64
-	fmt.Sscanf(val, "%d", &count)
+	if _, err := fmt.Sscanf(val, "%d", &count); err != nil {
+		return false
+	}
 	return count >= loginLimitMax
 }
 
 func ClearLoginFail(username, ip string) {
-	store.Del(loginKey(username, ip))
+	_ = store.Del(loginKey(username, ip))
 }
 
 func GetLoginLockTTL(username, ip string) time.Duration {

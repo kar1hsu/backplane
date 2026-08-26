@@ -1,5 +1,7 @@
 # Backplane — A Modular Go Admin Framework
 
+[![CI](https://github.com/kar1hsu/backplane/actions/workflows/ci.yml/badge.svg)](https://github.com/kar1hsu/backplane/actions/workflows/ci.yml)
+
 English | [简体中文](README.md)
 
 If Backplane helps your work, please consider giving it a [GitHub Star](https://github.com/kar1hsu/backplane). Thank you for the support.

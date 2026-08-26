@@ -117,8 +117,7 @@ func (s *RoleService) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 	if _, err := app.Enforcer.RemoveFilteredPolicy(0, role.Code); err != nil {
-		app.Enforcer.LoadPolicy() // 回滚内存策略到 DB 状态
-		return fmt.Errorf("清除角色权限策略失败: %w", err)
+		return reloadPolicyError("清除角色权限策略失败", err)
 	}
 	cache.ClearAllPermissionCache()
 	return nil
@@ -148,14 +147,12 @@ func (s *RoleService) SetMenus(ctx context.Context, roleID uint, menuIDs []uint)
 	}
 
 	if _, err := app.Enforcer.RemoveFilteredPolicy(0, role.Code); err != nil {
-		app.Enforcer.LoadPolicy()
-		return fmt.Errorf("清除旧权限策略失败: %w", err)
+		return reloadPolicyError("清除旧权限策略失败", err)
 	}
 	if len(menuIDs) > 0 {
 		menus, err := repository.NewMenuRepo().GetByIDs(ctx, menuIDs)
 		if err != nil {
-			app.Enforcer.LoadPolicy()
-			return err
+			return reloadPolicyError("读取菜单权限失败", err)
 		}
 		var policies [][]string
 		for _, m := range menus {
@@ -165,14 +162,12 @@ func (s *RoleService) SetMenus(ctx context.Context, roleID uint, menuIDs []uint)
 		}
 		if len(policies) > 0 {
 			if _, err := app.Enforcer.AddPolicies(policies); err != nil {
-				app.Enforcer.LoadPolicy()
-				return fmt.Errorf("写入权限策略失败: %w", err)
+				return reloadPolicyError("写入权限策略失败", err)
 			}
 		}
 	}
 	if err := app.Enforcer.SavePolicy(); err != nil {
-		app.Enforcer.LoadPolicy()
-		return fmt.Errorf("保存权限策略失败: %w", err)
+		return reloadPolicyError("保存权限策略失败", err)
 	}
 	cache.ClearAllPermissionCache()
 	return nil
@@ -185,8 +180,7 @@ func (s *RoleService) SetAPIs(ctx context.Context, roleID uint, apis []RoleAPIIt
 	}
 
 	if _, err := app.Enforcer.RemoveFilteredPolicy(0, role.Code); err != nil {
-		app.Enforcer.LoadPolicy()
-		return fmt.Errorf("清除旧权限策略失败: %w", err)
+		return reloadPolicyError("清除旧权限策略失败", err)
 	}
 	var policies [][]string
 	for _, api := range apis {
@@ -194,16 +188,21 @@ func (s *RoleService) SetAPIs(ctx context.Context, roleID uint, apis []RoleAPIIt
 	}
 	if len(policies) > 0 {
 		if _, err := app.Enforcer.AddPolicies(policies); err != nil {
-			app.Enforcer.LoadPolicy()
-			return fmt.Errorf("写入权限策略失败: %w", err)
+			return reloadPolicyError("写入权限策略失败", err)
 		}
 	}
 	if err := app.Enforcer.SavePolicy(); err != nil {
-		app.Enforcer.LoadPolicy()
-		return fmt.Errorf("保存权限策略失败: %w", err)
+		return reloadPolicyError("保存权限策略失败", err)
 	}
 	cache.ClearAllPermissionCache()
 	return nil
+}
+
+func reloadPolicyError(operation string, cause error) error {
+	if err := app.Enforcer.LoadPolicy(); err != nil {
+		return fmt.Errorf("%s: %w; 回滚内存策略失败: %v", operation, cause, err)
+	}
+	return fmt.Errorf("%s: %w", operation, cause)
 }
 
 func (s *RoleService) GetAPIs(ctx context.Context, roleID uint) ([]RoleAPIItem, error) {
