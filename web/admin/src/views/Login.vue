@@ -123,6 +123,7 @@ async function handleLogin() {
   background: #14b8a6;
   color: #062c2a;
   font-weight: 800;
+  line-height: 1;
 }
 
 .login-header {
