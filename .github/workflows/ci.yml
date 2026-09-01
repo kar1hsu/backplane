@@ -82,8 +82,18 @@ jobs:
           cache: npm
           cache-dependency-path: web/admin/package-lock.json
 
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
       - name: Install dependencies
         run: npm ci
 
       - name: Build
         run: npm run build
+
+      - name: Verify embedded frontend
+        working-directory: .
+        run: go test .
