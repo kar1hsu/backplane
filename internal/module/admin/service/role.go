@@ -22,17 +22,19 @@ func NewRoleService() *RoleService {
 
 type CreateRoleRequest struct {
 	Name   string `json:"name" binding:"required"`
-	Code   string `json:"code" binding:"required"`
+	Code   string `json:"code" binding:"required,max=64"`
 	Sort   int    `json:"sort"`
-	Status *int8  `json:"status"`
+	Status *int8  `json:"status" binding:"omitempty,oneof=0 1"`
 	Remark string `json:"remark"`
 }
 
+// UpdateRoleRequest: nil fields are left unchanged; a non-nil empty remark
+// clears it.
 type UpdateRoleRequest struct {
-	Name   string `json:"name"`
-	Sort   int    `json:"sort"`
-	Status *int8  `json:"status"`
-	Remark string `json:"remark"`
+	Name   *string `json:"name" binding:"omitempty,min=1"`
+	Sort   *int    `json:"sort"`
+	Status *int8   `json:"status" binding:"omitempty,oneof=0 1"`
+	Remark *string `json:"remark"`
 }
 
 type SetRoleMenusRequest struct {
@@ -72,13 +74,21 @@ func (s *RoleService) Create(ctx context.Context, req *CreateRoleRequest) error 
 		Status: status,
 		Remark: req.Remark,
 	}
-	if err := s.roleRepo.Create(ctx, role); err != nil {
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return errors.New("角色编码已存在")
+	return repository.Transaction(ctx, func(ctx context.Context) error {
+		if err := s.roleRepo.Create(ctx, role); err != nil {
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				return errors.New("角色编码已存在")
+			}
+			return err
 		}
-		return err
-	}
-	return nil
+		if status == 0 {
+			// Create skips zero values on columns with a default (status has
+			// default:1), so a disabled role would be stored as enabled.
+			role.Status = 0
+			return s.roleRepo.Update(ctx, role)
+		}
+		return nil
+	})
 }
 
 func (s *RoleService) GetByID(ctx context.Context, id uint) (*model.SysRole, error) {
@@ -99,17 +109,27 @@ func (s *RoleService) Update(ctx context.Context, op Operator, id uint, req *Upd
 		return forbidden("超级管理员角色不可禁用")
 	}
 
-	if req.Name != "" {
-		role.Name = req.Name
+	if req.Name != nil {
+		role.Name = *req.Name
 	}
-	role.Sort = req.Sort
-	if req.Status != nil {
+	if req.Sort != nil {
+		role.Sort = *req.Sort
+	}
+	statusChanged := req.Status != nil && *req.Status != role.Status
+	if statusChanged {
 		role.Status = *req.Status
 	}
-	if req.Remark != "" {
-		role.Remark = req.Remark
+	if req.Remark != nil {
+		role.Remark = *req.Remark
 	}
-	return s.roleRepo.Update(ctx, role)
+	if err := s.roleRepo.Update(ctx, role); err != nil {
+		return err
+	}
+	if statusChanged {
+		// Menus and button permissions are computed from enabled roles only.
+		cache.ClearAllPermissionCache()
+	}
+	return nil
 }
 
 func (s *RoleService) Delete(ctx context.Context, op Operator, id uint) error {
@@ -145,11 +165,8 @@ func (s *RoleService) ListAll(ctx context.Context) ([]model.SysRole, error) {
 }
 
 // SetMenus assigns menus to a role and rebuilds the role's Casbin policies from
-// the menus' associated APIs. The enforcer auto-saves each policy change to the
-// adapter, so no SavePolicy (which truncates and rewrites the whole table) is
-// needed. Casbin cannot share the DB transaction, so its operations are
-// error-checked and, on failure, the in-memory policy is reloaded from DB to
-// stay consistent.
+// the APIs of its enabled menus (see rebuildRolePolicies). Unknown menu IDs
+// are rejected rather than inserted as blank menus by Association.Replace.
 //
 // A non-super admin may only grant menus they hold themselves, so the "edit
 // role" permission cannot be used to hand out more than the operator has.
@@ -177,32 +194,17 @@ func (s *RoleService) SetMenus(ctx context.Context, op Operator, roleID uint, me
 		}
 	}
 
+	menuIDs = uniqueIDs(menuIDs)
+	if n, err := repository.NewMenuRepo().CountIDs(ctx, menuIDs); err != nil {
+		return err
+	} else if n != int64(len(menuIDs)) {
+		return errors.New("菜单不存在")
+	}
+
 	if err := s.roleRepo.SetMenus(ctx, roleID, menuIDs); err != nil {
 		return err
 	}
-
-	if _, err := app.Enforcer.RemoveFilteredPolicy(0, role.Code); err != nil {
-		return reloadPolicyError("清除旧权限策略失败", err)
-	}
-	if len(menuIDs) > 0 {
-		menus, err := repository.NewMenuRepo().GetByIDs(ctx, menuIDs)
-		if err != nil {
-			return reloadPolicyError("读取菜单权限失败", err)
-		}
-		var policies rolePolicies
-		for _, m := range menus {
-			for _, api := range m.APIs {
-				policies.add(role.Code, api.Path, api.Method)
-			}
-		}
-		if len(policies.rules) > 0 {
-			if _, err := app.Enforcer.AddPolicies(policies.rules); err != nil {
-				return reloadPolicyError("写入权限策略失败", err)
-			}
-		}
-	}
-	cache.ClearAllPermissionCache()
-	return nil
+	return rebuildRolePolicies(ctx, []model.SysRole{*role})
 }
 
 // SetAPIs grants raw API rules, bypassing menus, so it is super-admin only.

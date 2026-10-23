@@ -56,7 +56,7 @@ func (h *OperationLogHandler) GetByID(c *gin.Context) {
 	}
 	log, err := h.svc.GetByID(c.Request.Context(), uint(id))
 	if err != nil {
-		response.Fail(c, errcode.ErrNotFound, "日志不存在")
+		failLookup(c, err, errcode.ErrNotFound, "日志不存在")
 		return
 	}
 	response.OK(c, log)

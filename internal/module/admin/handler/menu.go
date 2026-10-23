@@ -24,13 +24,6 @@ func (h *MenuHandler) Create(c *gin.Context) {
 		response.Fail(c, errcode.ErrParam, "参数错误: "+err.Error())
 		return
 	}
-	if req.Status == 0 {
-		req.Status = 1
-	}
-	if req.Visible == 0 {
-		req.Visible = 1
-	}
-
 	if err := h.svc.Create(c.Request.Context(), operatorFrom(c), &req); err != nil {
 		failWith(c, err)
 		return
@@ -47,7 +40,7 @@ func (h *MenuHandler) GetByID(c *gin.Context) {
 
 	menu, err := h.svc.GetByID(c.Request.Context(), uint(id))
 	if err != nil {
-		response.Fail(c, errcode.ErrMenuNotFound, "菜单不存在")
+		failLookup(c, err, errcode.ErrMenuNotFound, "菜单不存在")
 		return
 	}
 	response.OK(c, menu)

@@ -98,7 +98,7 @@ func SeedData() error {
 		if err := tx.Model(adminRole).Association("Menus").Replace(menus); err != nil {
 			return err
 		}
-		return nil
+		return syncSerialSequences(tx, "sys_api", "sys_menu")
 	}); err != nil {
 		return err
 	}
@@ -114,6 +114,23 @@ func SeedData() error {
 		Log.Warn("已创建超级管理员 admin（密码来自 seed.admin_password），请登录后立即修改")
 	}
 	Log.Info("seed data completed")
+	return nil
+}
+
+// syncSerialSequences moves PostgreSQL id sequences past the seeded rows. The
+// seed inserts explicit IDs, which do not advance a sequence, so the next
+// regular insert would otherwise collide with ID 1. Other drivers derive the
+// next ID from the table and need nothing.
+func syncSerialSequences(tx *gorm.DB, tables ...string) error {
+	if tx.Name() != "postgres" {
+		return nil
+	}
+	for _, table := range tables {
+		sql := fmt.Sprintf("SELECT setval(pg_get_serial_sequence('%[1]s', 'id'), (SELECT COALESCE(MAX(id), 1) FROM %[1]s))", table)
+		if err := tx.Exec(sql).Error; err != nil {
+			return fmt.Errorf("sync %s id sequence: %w", table, err)
+		}
+	}
 	return nil
 }
 

@@ -6,7 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const maxPage = 10000
+const (
+	maxPage     = 10000
+	maxPageSize = 100
+)
 
 type Pagination struct {
 	Page     int   `json:"page"`
@@ -24,8 +27,11 @@ func GetPagination(c *gin.Context) Pagination {
 	if page > maxPage {
 		page = maxPage
 	}
-	if pageSize < 1 || pageSize > 100 {
+	if pageSize < 1 {
 		pageSize = 10
+	}
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
 	}
 
 	return Pagination{Page: page, PageSize: pageSize}

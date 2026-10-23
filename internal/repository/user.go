@@ -54,9 +54,14 @@ func (d *UserRepo) GetAuthState(ctx context.Context, id uint) (*AuthState, error
 	return &AuthState{TokenVersion: user.TokenVersion, Status: user.Status, RoleCodes: codes}, nil
 }
 
-// Update writes only base columns; Roles is managed by SetRoles.
-func (d *UserRepo) Update(ctx context.Context, user *model.SysUser) error {
-	return d.BaseRepo.Update(ctx, user, "Nickname", "Email", "Phone", "Avatar", "Status", "Password", "TokenVersion")
+// UpdateColumns writes only the given columns. Callers pass just what changed
+// (and token_version as an expression), so a concurrent edit to another column
+// — e.g. a password reset — is not overwritten with a stale value.
+func (d *UserRepo) UpdateColumns(ctx context.Context, id uint, values map[string]interface{}) error {
+	if len(values) == 0 {
+		return nil
+	}
+	return dbFrom(ctx).Model(&model.SysUser{}).Where("id = ?", id).Updates(values).Error
 }
 
 // Delete soft-deletes the user, clears its role associations (sys_user_role),
@@ -65,7 +70,7 @@ func (d *UserRepo) Update(ctx context.Context, user *model.SysUser) error {
 func (d *UserRepo) Delete(ctx context.Context, id uint) error {
 	return Transaction(ctx, func(ctx context.Context) error {
 		if err := dbFrom(ctx).Model(&model.SysUser{}).Where("id = ?", id).
-			Update("username", gorm.Expr("CONCAT('del#', id, '#', LEFT(username, 40))")).Error; err != nil {
+			Update("username", gorm.Expr("CONCAT('del#', id, '#', SUBSTR(username, 1, 40))")).Error; err != nil {
 			return err
 		}
 		return dbFrom(ctx).Select("Roles").Delete(&model.SysUser{ID: id}).Error

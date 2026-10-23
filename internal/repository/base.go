@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ── 查询选项 ──
@@ -22,6 +23,10 @@ type QueryOptions struct {
 	Select   []string               // projection columns
 	Group    string
 	Having   map[string]interface{}
+
+	// OrderColumns sort by columns GORM quotes per dialect; use it for names
+	// that are reserved words (e.g. "group"). Applied before Order.
+	OrderColumns []clause.OrderByColumn
 }
 
 // Cond is a raw query fragment for predicates that Where (equality) and Search
@@ -68,6 +73,9 @@ func (q *QueryOptions) applyAll(db *gorm.DB) *gorm.DB {
 	}
 	if len(q.Select) > 0 {
 		db = db.Select(q.Select)
+	}
+	for _, o := range q.OrderColumns {
+		db = db.Order(o)
 	}
 	for _, o := range q.Order {
 		db = db.Order(o)
@@ -149,6 +157,20 @@ func (r BaseRepo[T]) Exists(ctx context.Context, q *QueryOptions) (bool, error) 
 		return false, err
 	}
 	return total > 0, nil
+}
+
+// CountIDs returns how many of ids exist (soft-deleted rows excluded), so
+// callers can reject unknown IDs before Association.Replace would insert them
+// as blank records.
+func (r BaseRepo[T]) CountIDs(ctx context.Context, ids []uint) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	var total int64
+	if err := dbFrom(ctx).Model(new(T)).Where("id IN ?", ids).Count(&total).Error; err != nil {
+		return 0, err
+	}
+	return total, nil
 }
 
 func (r BaseRepo[T]) List(ctx context.Context, q *QueryOptions) ([]T, error) {

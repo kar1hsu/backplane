@@ -24,9 +24,24 @@ func (d *MenuRepo) Update(ctx context.Context, menu *model.SysMenu) error {
 	return d.BaseRepo.Update(ctx, menu, "ParentID", "Name", "Path", "Component", "Icon", "Sort", "Type", "Permission", "Visible", "Status")
 }
 
-// Delete removes the menu and its API associations (sys_menu_api).
+// Delete removes the menu with its API and role associations (sys_menu_api,
+// sys_role_menu), so no role keeps a grant to a menu that no longer exists.
 func (d *MenuRepo) Delete(ctx context.Context, id uint) error {
-	return dbFrom(ctx).Select("APIs").Delete(&model.SysMenu{ID: id}).Error
+	return Transaction(ctx, func(ctx context.Context) error {
+		if err := dbFrom(ctx).Exec("DELETE FROM sys_role_menu WHERE sys_menu_id = ?", id).Error; err != nil {
+			return err
+		}
+		return dbFrom(ctx).Select("APIs").Delete(&model.SysMenu{ID: id}).Error
+	})
+}
+
+// IDsByAPI returns the IDs of the menus bound to an API.
+func (d *MenuRepo) IDsByAPI(ctx context.Context, apiID uint) ([]uint, error) {
+	var ids []uint
+	if err := dbFrom(ctx).Table("sys_menu_api").Where("sys_api_id = ?", apiID).Pluck("sys_menu_id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (d *MenuRepo) ListAll(ctx context.Context) ([]model.SysMenu, error) {

@@ -83,7 +83,7 @@ func TestUserUpdatePrivilegeGuards(t *testing.T) {
 		{name: "unknown role id", op: f.rootOp(), target: f.bob.ID,
 			req: UpdateUserRequest{RoleIDs: []uint{9999}}, wantErr: true},
 		{name: "self edit with unchanged status and roles", op: f.aliceOp(), target: f.alice.ID,
-			req: UpdateUserRequest{Nickname: "Alice", Status: &active, RoleIDs: []uint{f.editorRole.ID}}},
+			req: UpdateUserRequest{Nickname: ptr("Alice"), Status: &active, RoleIDs: []uint{f.editorRole.ID}}},
 		{name: "non-super assigns ordinary role", op: f.aliceOp(), target: f.bob.ID,
 			req: UpdateUserRequest{RoleIDs: []uint{f.editorRole.ID}}},
 		{name: "super grants super admin role", op: f.rootOp(), target: f.bob.ID,
@@ -120,7 +120,7 @@ func TestUserUpdateRevokesSessionsOnlyOnRealChanges(t *testing.T) {
 	active := int8(1)
 
 	if err := svc.Update(ctx, f.rootOp(), f.bob.ID, &UpdateUserRequest{
-		Nickname: "Bob", Status: &active, RoleIDs: []uint{f.auditorRole.ID},
+		Nickname: ptr("Bob"), Status: &active, RoleIDs: []uint{f.auditorRole.ID},
 	}); err != nil {
 		t.Fatalf("Update(unchanged) error = %v", err)
 	}
@@ -177,7 +177,7 @@ func TestRolePrivilegeGuards(t *testing.T) {
 			return svc.SetMenus(ctx, f.aliceOp(), f.auditorRole.ID, []uint{f.menuB.ID})
 		}},
 		{name: "non-super edits super admin role", wantForbidden: true, run: func() error {
-			return svc.Update(ctx, f.aliceOp(), f.adminRole.ID, &UpdateRoleRequest{Name: "x"})
+			return svc.Update(ctx, f.aliceOp(), f.adminRole.ID, &UpdateRoleRequest{Name: ptr("x")})
 		}},
 		{name: "super disables super admin role", wantForbidden: true, run: func() error {
 			return svc.Update(ctx, f.rootOp(), f.adminRole.ID, &UpdateRoleRequest{Status: &disabled})
@@ -214,7 +214,7 @@ func TestMenuAPIBindingIsSuperAdminOnly(t *testing.T) {
 	mustCreate(t, &api)
 
 	unchanged := []uint{}
-	if err := svc.Update(ctx, f.aliceOp(), f.menuA.ID, &UpdateMenuRequest{Name: "A2", Type: 1, Status: 1, Visible: 1, APIIDs: &unchanged}); err != nil {
+	if err := svc.Update(ctx, f.aliceOp(), f.menuA.ID, &UpdateMenuRequest{Name: ptr("A2"), APIIDs: &unchanged}); err != nil {
 		t.Fatalf("Update(unchanged api_ids) error = %v", err)
 	}
 	changed := []uint{api.ID}
@@ -224,7 +224,7 @@ func TestMenuAPIBindingIsSuperAdminOnly(t *testing.T) {
 	if err := svc.Create(ctx, f.aliceOp(), &CreateMenuRequest{Name: "C", APIIDs: []uint{api.ID}}); !IsForbidden(err) {
 		t.Fatalf("Create(api_ids) by non-super error = %v, want forbidden", err)
 	}
-	if err := svc.Update(ctx, f.rootOp(), f.menuA.ID, &UpdateMenuRequest{Name: "A3", Type: 1, Status: 1, Visible: 1, APIIDs: &changed}); err != nil {
+	if err := svc.Update(ctx, f.rootOp(), f.menuA.ID, &UpdateMenuRequest{Name: ptr("A3"), APIIDs: &changed}); err != nil {
 		t.Fatalf("Update(api_ids) by super error = %v", err)
 	}
 }
@@ -244,3 +244,5 @@ func tokenVersion(t *testing.T, userID uint) int {
 	}
 	return user.TokenVersion
 }
+
+func ptr[T any](v T) *T { return &v }

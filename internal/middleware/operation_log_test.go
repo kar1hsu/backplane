@@ -5,8 +5,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
+	"github.com/kar1hsu/backplane/internal/model"
 )
 
 func TestCaptureRequestRedactsSecrets(t *testing.T) {
@@ -62,5 +64,21 @@ func TestCaptureRequestRedactsSecrets(t *testing.T) {
 				t.Fatalf("captured params %s lost %q", got, tt.wantKept)
 			}
 		})
+	}
+}
+
+func TestFitColumnsTruncatesByCharacter(t *testing.T) {
+	entry := &model.SysOperationLog{
+		Username:  strings.Repeat("管", 100),
+		UserAgent: strings.Repeat("a", 1000),
+		Method:    "POST",
+	}
+	fitColumns(entry)
+
+	if got := utf8.RuneCountInString(entry.Username); got != 64 || !utf8.ValidString(entry.Username) {
+		t.Fatalf("username runes = %d (valid %v), want 64", got, utf8.ValidString(entry.Username))
+	}
+	if len(entry.UserAgent) != 255 || entry.Method != "POST" {
+		t.Fatalf("user agent len = %d, method = %q", len(entry.UserAgent), entry.Method)
 	}
 }

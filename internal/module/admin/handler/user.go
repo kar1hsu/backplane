@@ -57,7 +57,7 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 
 	user, err := h.svc.GetByID(c.Request.Context(), uint(id))
 	if err != nil {
-		response.Fail(c, errcode.ErrUserNotFound, "用户不存在")
+		failLookup(c, err, errcode.ErrUserNotFound, "用户不存在")
 		return
 	}
 	response.OK(c, user)
