@@ -15,10 +15,6 @@ func Init(cfgFile string) error {
 	Log.Info("config loaded successfully")
 	Log.Infof("timezone set to %s", Cfg.Timezone)
 
-	if Cfg.JWT.Secret == defaultJWTSecret {
-		Log.Warn("jwt.secret 仍为默认值，部署生产前请务必修改")
-	}
-
 	if err := InitStorage(); err != nil {
 		return fmt.Errorf("init storage: %w", err)
 	}

@@ -6,6 +6,10 @@ import (
 	"github.com/kar1hsu/backplane/internal/module/admin/handler"
 )
 
+// maxRequestBodyBytes bounds admin request bodies; every admin endpoint takes
+// a small JSON payload, including the unauthenticated login.
+const maxRequestBodyBytes int64 = 2 << 20
+
 type Module struct{}
 
 func New() *Module {
@@ -24,6 +28,9 @@ func (m *Module) RegisterRoutes(rg *gin.RouterGroup) {
 	apiHandler := handler.NewAPIHandler()
 	operationLogHandler := handler.NewOperationLogHandler()
 	configHandler := handler.NewConfigHandler()
+
+	// Registered first so it applies to every route below.
+	rg.Use(middleware.BodyLimit(maxRequestBodyBytes))
 
 	// Public routes (no auth required)
 	rg.POST("/login", authHandler.Login)

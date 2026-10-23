@@ -8,6 +8,11 @@ server:
   # 允许的跨域来源；留空或不配置则回退为 "*"。生产环境建议配置显式白名单：
   # allow_origins:
   #   - https://admin.example.com
+  # 可信反向代理（IP 或 CIDR）。只有来自这些地址的 X-Forwarded-For / X-Real-IP 才会被采信，
+  # 留空表示不信任任何代理、直接使用连接来源 IP。部署在 Nginx / LB 之后时需配置：
+  # trusted_proxies:
+  #   - 127.0.0.1
+  #   - 10.0.0.0/8
 
 database:
   driver: mysql # mysql | postgres
@@ -29,7 +34,9 @@ redis:
   key_prefix: "backplane:"   # Redis key 全局前缀，避免多项目 key 冲突
 
 jwt:
-  secret: backplane-jwt-secret-key-change-in-production
+  # 必填，至少 32 字节，任何模式下为空或过短都会拒绝启动。生成：openssl rand -hex 32
+  # docker 部署时由 deploy/.env 的 JWT_SECRET 注入
+  secret: ""
   expire: 7200    # token 过期时间（秒）
   issuer: backplane
 

@@ -7,7 +7,10 @@ import (
 	gormadapter "github.com/casbin/gorm-adapter/v3"
 )
 
-var Enforcer *casbin.Enforcer
+// Enforcer is shared by every request (Enforce) and the role admin APIs
+// (policy writes), so it must be the synchronized variant: the plain Enforcer
+// mutates unguarded maps and concurrent use can crash the process.
+var Enforcer *casbin.SyncedEnforcer
 
 func InitCasbin() error {
 	adapter, err := gormadapter.NewAdapterByDB(DB)
@@ -15,7 +18,7 @@ func InitCasbin() error {
 		return fmt.Errorf("create casbin adapter failed: %w", err)
 	}
 
-	enforcer, err := casbin.NewEnforcer(Cfg.Casbin.ModelPath, adapter)
+	enforcer, err := casbin.NewSyncedEnforcer(Cfg.Casbin.ModelPath, adapter)
 	if err != nil {
 		return fmt.Errorf("create casbin enforcer failed: %w", err)
 	}

@@ -22,6 +22,12 @@ func NewRouter(adminDist embed.FS, modules ...Module) *gin.Engine {
 	gin.SetMode(app.Cfg.Server.Mode)
 
 	r := gin.New()
+	// gin trusts X-Forwarded-For from every source by default, which lets any
+	// client spoof c.ClientIP() (used by the login limiter and audit logs).
+	// Only honor forwarding headers from the configured proxies.
+	if err := r.SetTrustedProxies(app.Cfg.Server.TrustedProxies); err != nil {
+		app.Log.Fatalf("set trusted proxies: %v", err)
+	}
 	r.Use(gin.Recovery())
 	r.Use(middleware.Cors())
 	r.Use(middleware.Logger())

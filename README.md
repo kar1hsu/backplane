@@ -69,7 +69,7 @@ git switch naive-ui
 - **操作审计**：记录操作人、模块、请求与响应、执行结果、来源 IP 和耗时，支持检索与清理。
 - **配置与缓存**：系统配置持久化到数据库，并通过 Redis 缓存实现多实例即时生效。
 - **任务系统**：基于 Asynq 的即时、延迟、唯一任务与 Cron 定时任务。
-- **文件上传**：本地文件存储、日期目录、随机文件名、大小与 MIME 双重校验。
+- **文件上传**：本地文件存储、日期目录、随机文件名、大小与 MIME 双重校验（`/api/upload` 为未鉴权的演示接口，见[开始写业务](#开始写业务)）。
 - **交付与部署**：前端嵌入 Go 二进制，支持 MySQL / PostgreSQL 和 Docker Compose。
 
 ## 技术栈
@@ -90,12 +90,15 @@ cd backplane/deploy
 
 cp .env.example .env
 cp ../config/config.yaml.example config.yaml
+# 编辑 .env：填写 REDIS_PASSWORD，并把 openssl rand -hex 32 的输出填入 JWT_SECRET
 docker compose up -d --build
 ```
 
+`.env` 是数据库、Redis 密码和 JWT 密钥的唯一来源，compose 会把它们注入应用，覆盖 `config.yaml` 中的同名配置。MySQL / PostgreSQL / Redis 端口只绑定在本机 `127.0.0.1`。
+
 启动后访问 [http://localhost:8080](http://localhost:8080)。
 
-默认管理员账号：`admin` / `admin123`。首次启动会自动创建数据表和基础权限数据，生产环境部署前请修改默认密码、数据库密码和 `jwt.secret`。
+默认管理员账号：`admin` / `admin123`。首次启动会自动创建数据表和基础权限数据，生产环境部署前请修改默认密码和数据库密码。
 
 ### 本地开发
 
@@ -106,7 +109,8 @@ git clone git@github.com:kar1hsu/backplane.git
 cd backplane
 
 cp config/config.yaml.example config/config.yaml
-# 修改 config/config.yaml 中的数据库、Redis 和 JWT 配置
+# 修改 config/config.yaml 中的数据库、Redis 配置，并把 openssl rand -hex 32 的输出填入 jwt.secret
+# jwt.secret 为空、为旧的默认占位值或短于 32 字节时，任何模式下都会拒绝启动
 
 cd web/admin
 npm ci
@@ -128,6 +132,9 @@ go run ./cmd/scheduler
 ## 开始写业务
 
 Backplane 按模块注册路由。建议参考 `internal/module/api` 创建自己的业务模块，并保持 Handler、Service、Repository 的职责边界。
+
+> [!WARNING]
+> `internal/module/api` 中的 `POST /api/upload` 是演示接口，**没有鉴权**，任何人都能向服务器写入文件。正式部署前请按业务加上鉴权（例如 `middleware.AdminAuth()`）和限流，或直接移除该路由。
 
 一个模块只需要实现 `server.Module`：
 

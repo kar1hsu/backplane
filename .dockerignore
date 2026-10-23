@@ -1,0 +1,22 @@
+# Build context is the repo root (deploy/docker-compose.yaml: context: ..).
+
+# VCS and editor state
+.git
+.github
+.idea
+.vscode
+.claude
+**/.DS_Store
+
+# Local secrets and runtime data; the image gets config.yaml.example instead
+config/config.yaml
+deploy/.env
+deploy/config.yaml
+logs
+storage
+
+# Rebuilt inside the image; host node_modules may hold binaries for another OS
+**/node_modules
+web/admin/dist
+
+docs

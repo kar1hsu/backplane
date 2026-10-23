@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -29,6 +30,9 @@ type ServerConfig struct {
 	Port         int      `mapstructure:"port"`
 	Mode         string   `mapstructure:"mode"`
 	AllowOrigins []string `mapstructure:"allow_origins"`
+	// TrustedProxies lists the reverse proxies (IP or CIDR) whose
+	// X-Forwarded-For / X-Real-IP headers are honored. Empty trusts none.
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
 type DatabaseConfig struct {
@@ -139,6 +143,8 @@ func setConfigDefaults() {
 	viper.SetDefault("timezone", "Asia/Shanghai")
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.mode", "debug")
+	// Registered so SERVER_TRUSTED_PROXIES (comma-separated) can override it.
+	viper.SetDefault("server.trusted_proxies", []string{})
 	viper.SetDefault("database.max_idle_conns", 10)
 	viper.SetDefault("database.max_open_conns", 100)
 	viper.SetDefault("jwt.expire", 7200)
@@ -167,8 +173,13 @@ func InitTimezone() error {
 	return nil
 }
 
-// validateConfig fails fast on missing required fields and rejects weak or
-// default JWT secrets when running in release mode.
+// minJWTSecretLen is the minimum HS256 secret length accepted at startup.
+const minJWTSecretLen = 32
+
+// validateConfig fails fast on missing required fields, weak or default JWT
+// secrets, and malformed trusted proxies. The secret checks apply in every
+// mode: the example config runs in debug mode, so gating them on release
+// would let a public placeholder secret sign tokens in real deployments.
 func validateConfig() error {
 	if Cfg.Database.Driver == "" {
 		return fmt.Errorf("database.driver is required")
@@ -177,14 +188,20 @@ func validateConfig() error {
 		return fmt.Errorf("database.dbname is required")
 	}
 	if Cfg.JWT.Secret == "" {
-		return fmt.Errorf("jwt.secret is required")
+		return fmt.Errorf("jwt.secret is required; generate one with `openssl rand -hex 32` (or set JWT_SECRET)")
 	}
-	if Cfg.Server.Mode == "release" {
-		if Cfg.JWT.Secret == defaultJWTSecret {
-			return fmt.Errorf("jwt.secret must be changed from the default value in release mode")
+	if Cfg.JWT.Secret == defaultJWTSecret {
+		return fmt.Errorf("jwt.secret must not be the default placeholder; generate one with `openssl rand -hex 32`")
+	}
+	if len(Cfg.JWT.Secret) < minJWTSecretLen {
+		return fmt.Errorf("jwt.secret must be at least %d bytes", minJWTSecretLen)
+	}
+	for _, proxy := range Cfg.Server.TrustedProxies {
+		if net.ParseIP(proxy) != nil {
+			continue
 		}
-		if len(Cfg.JWT.Secret) < 32 {
-			return fmt.Errorf("jwt.secret must be at least 32 bytes in release mode")
+		if _, _, err := net.ParseCIDR(proxy); err != nil {
+			return fmt.Errorf("server.trusted_proxies: %q is not a valid IP or CIDR", proxy)
 		}
 	}
 	return nil
