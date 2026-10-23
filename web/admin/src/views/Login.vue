@@ -40,7 +40,7 @@
         </n-button>
       </n-form>
 
-      <p v-if="isDev" class="login-hint">默认账号：admin / admin123</p>
+      <p v-if="isDev" class="login-hint">初始账号 admin，密码见首次启动日志或 seed.admin_password</p>
     </section>
   </main>
 </template>
@@ -65,6 +65,7 @@ const rules: FormRules = {
 }
 
 async function handleLogin() {
+  if (loading.value) return // Enter can fire again while a login is in flight
   try {
     await formRef.value?.validate()
   } catch {

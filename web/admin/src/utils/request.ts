@@ -19,32 +19,43 @@ request.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
+// 并发请求同时遇到登录失效时，只提示一次、只跳转一次。
+let redirectingToLogin = false
+
 // 401：清空登录态（含 Pinia store）并跳回登录页。
 // 直接 clearAuth 而不调用 logout 接口，避免登出请求再次 401 造成递归。
-function handleUnauthorized() {
+function handleUnauthorized(text: string) {
+  if (redirectingToLogin) return
   useUserStore().clearAuth()
-  if (router.currentRoute.value.name !== 'Login') {
-    router.replace('/login')
-  }
+  if (router.currentRoute.value.name === 'Login') return
+  redirectingToLogin = true
+  message.error(text)
+  router.replace('/login').finally(() => {
+    redirectingToLogin = false
+  })
 }
 
 request.interceptors.response.use(
   (response) => {
     const res = response.data
     if (res.code !== 0) {
-      message.error(res.message || '请求失败')
       if (res.code === 401) {
-        handleUnauthorized()
+        handleUnauthorized(res.message || '登录状态已失效')
+      } else {
+        message.error(res.message || '请求失败')
       }
       return Promise.reject(new Error(res.message))
     }
     return res
   },
   (error) => {
+    // 优先展示后端返回的业务提示（如"无访问权限"），而不是 axios 的通用文案
+    const text = error.response?.data?.message || error.message || '网络错误'
     if (error.response?.status === 401) {
-      handleUnauthorized()
+      handleUnauthorized(text)
+    } else {
+      message.error(text)
     }
-    message.error(error.message || '网络错误')
     return Promise.reject(error)
   }
 )

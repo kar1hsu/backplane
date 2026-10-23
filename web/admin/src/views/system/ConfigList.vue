@@ -210,12 +210,29 @@ const validOptionRows = computed(() =>
     .map((option) => ({ label: option.label || option.value, value: option.value })),
 )
 
+// Values as loaded, keyed by config key: "保存" submits only what changed, so
+// it cannot overwrite settings another admin edited in the meantime.
+const savedValues = new Map<string, string>()
+
+function isEditable(row: any): boolean {
+  return canEdit.value && row.editable !== false
+}
+
+// Bool values stored as "1" would show as off; normalize them to "true".
+function normalizeValue(row: any): string {
+  const value = String(row.value ?? '')
+  if (row.type === 'bool') return value === 'true' || value === '1' ? 'true' : 'false'
+  return value
+}
+
 function renderConfigValue(row: any) {
+  const disabled = !isEditable(row)
   if (row.type === 'bool') {
     return h(NSwitch, {
       value: row.value,
       checkedValue: 'true',
       uncheckedValue: 'false',
+      disabled,
       'onUpdate:value': (value: string) => { row.value = value },
     })
   }
@@ -224,6 +241,7 @@ function renderConfigValue(row: any) {
       value: row.value,
       options: parseOptions(row.options),
       style: { width: '300px' },
+      disabled,
       'onUpdate:value': (value: string) => { row.value = value },
     })
   }
@@ -232,6 +250,7 @@ function renderConfigValue(row: any) {
       value: row.value,
       type: 'textarea',
       autosize: { minRows: 2, maxRows: 6 },
+      disabled,
       'onUpdate:value': (value: string) => { row.value = value },
     })
   }
@@ -239,6 +258,7 @@ function renderConfigValue(row: any) {
     value: row.value,
     style: { width: row.type === 'int' || row.type === 'float' ? '180px' : '360px' },
     placeholder: numericPlaceholder(row.type),
+    disabled,
     'onUpdate:value': (value: string) => { row.value = value },
   })
 }
@@ -299,7 +319,9 @@ async function fetchData() {
   loading.value = true
   try {
     const res: any = await getConfigList()
-    configs.value = res.data || []
+    configs.value = (res.data || []).map((config: any) => ({ ...config, value: normalizeValue(config) }))
+    savedValues.clear()
+    for (const config of configs.value) savedValues.set(config.key, config.value)
     if ((!activeGroup.value || !groups.value.includes(activeGroup.value)) && groups.value.length) {
       activeGroup.value = groups.value[0]
     }
@@ -309,9 +331,15 @@ async function fetchData() {
 }
 
 async function handleSave() {
+  const items = configs.value
+    .map((config) => ({ key: config.key, value: String(config.value ?? '') }))
+    .filter((item) => item.value !== savedValues.get(item.key))
+  if (!items.length) {
+    message.info('没有需要保存的修改')
+    return
+  }
   saving.value = true
   try {
-    const items = configs.value.map((config) => ({ key: config.key, value: String(config.value ?? '') }))
     await batchUpdateConfig(items)
     message.success('配置已保存')
     fetchData()

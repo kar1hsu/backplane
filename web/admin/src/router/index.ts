@@ -49,6 +49,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/system/OperationLogList.vue'),
         meta: { title: '操作日志' },
       },
+      {
+        // Unknown paths (e.g. a menu whose path has no page) show a 404
+        // instead of an empty screen.
+        path: ':pathMatch(.*)*',
+        name: 'NotFound',
+        component: () => import('@/views/NotFound.vue'),
+        meta: { title: '页面不存在', noTab: true },
+      },
     ],
   },
 ]
@@ -66,7 +74,7 @@ router.beforeEach((to, _from, next) => {
     return
   }
 
-  if (to.name && to.meta.title && !to.meta.noAuth) {
+  if (to.name && to.meta.title && !to.meta.noAuth && !to.meta.noTab) {
     const tabStore = useTabStore()
     tabStore.addTab({
       path: to.path,

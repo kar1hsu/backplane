@@ -102,7 +102,7 @@
       <template #footer>
         <div class="modal-actions">
           <n-button @click="menuDialogVisible = false">取消</n-button>
-          <n-button type="primary" :loading="menuSubmitLoading" @click="handleMenuSubmit">保存权限</n-button>
+          <n-button type="primary" :loading="menuSubmitLoading" :disabled="!menuTreeData.length" @click="handleMenuSubmit">保存权限</n-button>
         </div>
       </template>
     </n-modal>
@@ -306,10 +306,20 @@ function collectAllIds(menus: any[]): number[] {
   return ids
 }
 
+// Bumped on every open so a slow response for a previously clicked role
+// cannot fill the dialog of the current one.
+let menuDialogRequest = 0
+
 async function openMenuDialog(row: any) {
+  // Never show a stale or empty tree: saving it would overwrite this role's
+  // menus (and its API permissions) with the wrong set.
+  const requestId = ++menuDialogRequest
   currentRoleId.value = row.id
+  menuTreeData.value = []
+  checkedMenuIds.value = []
   try {
     const [treeRes, roleRes]: any[] = await Promise.all([getMenuTree(), getRoleById(row.id)])
+    if (requestId !== menuDialogRequest) return
     menuTreeData.value = treeRes.data || []
     checkedMenuIds.value = collectAllIds(roleRes.data?.menus || [])
     menuDialogVisible.value = true

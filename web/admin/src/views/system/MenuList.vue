@@ -143,8 +143,21 @@ const formRef = ref<FormInst | null>(null)
 const treeData = ref<any[]>([])
 const modalStyle = { width: 'min(620px, calc(100vw - 32px))' }
 
+// A menu cannot move under itself, one of its descendants or a button; the
+// backend rejects those too, this just keeps them out of the picker.
+function toParentOptions(nodes: any[], selfId: number, insideSelf = false): TreeSelectOption[] {
+  return nodes.map((node) => {
+    const blocked = insideSelf || (selfId !== 0 && node.id === selfId)
+    return {
+      ...node,
+      disabled: blocked || node.type === 2,
+      children: toParentOptions(node.children || [], selfId, blocked),
+    }
+  })
+}
+
 const parentOptions = computed<TreeSelectOption[]>(() => [
-  { id: 0, name: '顶级菜单', children: treeData.value },
+  { id: 0, name: '顶级菜单', children: toParentOptions(treeData.value, form.id) },
 ])
 const defaultForm = {
   id: 0,
@@ -296,8 +309,10 @@ async function handleSubmit() {
 
   submitLoading.value = true
   try {
-    if (form.id) await updateMenu(form.id, form)
-    else await createMenu(form)
+    // Clearing the tree-select yields null; the root is parent 0.
+    const data = { ...form, parent_id: form.parent_id ?? 0 }
+    if (form.id) await updateMenu(form.id, data)
+    else await createMenu(data)
     message.success('操作成功')
     dialogVisible.value = false
     fetchData()
