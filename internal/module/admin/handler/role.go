@@ -39,7 +39,7 @@ func (h *RoleHandler) GetByID(c *gin.Context) {
 	}
 	role, err := h.svc.GetByID(c.Request.Context(), uint(id))
 	if err != nil {
-		response.Fail(c, errcode.ErrRoleNotFound, "角色不存在")
+		failLookup(c, err, errcode.ErrRoleNotFound, "角色不存在")
 		return
 	}
 	response.OK(c, role)

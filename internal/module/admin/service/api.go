@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 
 	"github.com/kar1hsu/backplane/internal/model"
 	"github.com/kar1hsu/backplane/internal/repository"
@@ -15,16 +16,18 @@ func NewAPIService() *APIService {
 	return &APIService{apiRepo: repository.NewApiRepo()}
 }
 
+// The RBAC matcher compares methods exactly (r.act == p.act), so methods are
+// stored upper-case and limited to what the router serves.
 type CreateAPIRequest struct {
-	Path        string `json:"path" binding:"required"`
-	Method      string `json:"method" binding:"required"`
+	Path        string `json:"path" binding:"required,startswith=/"`
+	Method      string `json:"method" binding:"required,oneof=GET POST PUT DELETE PATCH get post put delete patch"`
 	Group       string `json:"group"`
 	Description string `json:"description"`
 }
 
 type UpdateAPIRequest struct {
-	Path        string `json:"path"`
-	Method      string `json:"method"`
+	Path        string `json:"path" binding:"omitempty,startswith=/"`
+	Method      string `json:"method" binding:"omitempty,oneof=GET POST PUT DELETE PATCH get post put delete patch"`
 	Group       string `json:"group"`
 	Description string `json:"description"`
 }
@@ -39,7 +42,7 @@ func (s *APIService) Create(ctx context.Context, op Operator, req *CreateAPIRequ
 	}
 	api := &model.SysAPI{
 		Path:        req.Path,
-		Method:      req.Method,
+		Method:      strings.ToUpper(req.Method),
 		Group:       req.Group,
 		Description: req.Description,
 	}
@@ -58,11 +61,12 @@ func (s *APIService) Update(ctx context.Context, op Operator, id uint, req *Upda
 	if err != nil {
 		return notFoundOr(err, "API 不存在")
 	}
+	oldPath, oldMethod := api.Path, api.Method
 	if req.Path != "" {
 		api.Path = req.Path
 	}
 	if req.Method != "" {
-		api.Method = req.Method
+		api.Method = strings.ToUpper(req.Method)
 	}
 	if req.Group != "" {
 		api.Group = req.Group
@@ -70,19 +74,43 @@ func (s *APIService) Update(ctx context.Context, op Operator, id uint, req *Upda
 	if req.Description != "" {
 		api.Description = req.Description
 	}
-	return s.apiRepo.Update(ctx, api)
+	if err := s.apiRepo.Update(ctx, api); err != nil {
+		return err
+	}
+	if api.Path == oldPath && api.Method == oldMethod {
+		return nil
+	}
+	// Roles were granted the old path/method; re-grant what their menus bind.
+	return s.rebuildPoliciesForAPI(ctx, id)
+}
+
+// rebuildPoliciesForAPI re-syncs every role whose menus bind the API.
+func (s *APIService) rebuildPoliciesForAPI(ctx context.Context, apiID uint) error {
+	menuIDs, err := repository.NewMenuRepo().IDsByAPI(ctx, apiID)
+	if err != nil {
+		return err
+	}
+	return rebuildPoliciesForMenus(ctx, menuIDs)
 }
 
 func (s *APIService) Delete(ctx context.Context, op Operator, id uint) error {
 	if err := requireSuperAdmin(op, apiWriteForbiddenMsg); err != nil {
 		return err
 	}
-	return s.apiRepo.Delete(ctx, id)
+	// Collect the affected menus before the delete unbinds them.
+	menuIDs, err := repository.NewMenuRepo().IDsByAPI(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.apiRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+	return rebuildPoliciesForMenus(ctx, menuIDs)
 }
 
 func (s *APIService) List(ctx context.Context, page, pageSize int) ([]model.SysAPI, int64, error) {
 	return s.apiRepo.PageList(ctx, page, pageSize, &repository.QueryOptions{
-		Order: []string{"`group` ASC", "id ASC"},
+		OrderColumns: repository.GroupOrder,
 	})
 }
 

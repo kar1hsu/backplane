@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kar1hsu/backplane/internal/app"
@@ -108,6 +109,7 @@ func OperationLog() gin.HandlerFunc {
 		// and bounded by its own timeout — logging must not block the response.
 		ctx, cancel := context.WithTimeout(context.Background(), writeLogTimeout)
 		defer cancel()
+		fitColumns(entry)
 		if err := repo.Create(ctx, entry); err != nil {
 			app.Log.Errorw("write operation log failed", "path", entry.Path, "err", err)
 		}
@@ -135,9 +137,37 @@ func RecordLogin(c *gin.Context, action string, userID uint, username string, su
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), writeLogTimeout)
 	defer cancel()
+	fitColumns(entry)
 	if err := repository.NewOperationLogRepo().Create(ctx, entry); err != nil {
 		app.Log.Errorw("write login log failed", "username", username, "err", err)
 	}
+}
+
+// fitColumns trims client-controlled fields to their column sizes (see
+// model.SysOperationLog). Strict-mode MySQL and PostgreSQL reject an
+// over-long value, which would drop the whole audit record — e.g. a login
+// attempt with a huge username or a request with a long User-Agent.
+func fitColumns(e *model.SysOperationLog) {
+	e.TraceID = truncateRunes(e.TraceID, 32)
+	e.Username = truncateRunes(e.Username, 64)
+	e.RoleCodes = truncateRunes(e.RoleCodes, 255)
+	e.Module = truncateRunes(e.Module, 64)
+	e.Action = truncateRunes(e.Action, 128)
+	e.Method = truncateRunes(e.Method, 16)
+	e.Route = truncateRunes(e.Route, 255)
+	e.Path = truncateRunes(e.Path, 255)
+	e.TargetID = truncateRunes(e.TargetID, 64)
+	e.ClientIP = truncateRunes(e.ClientIP, 64)
+	e.UserAgent = truncateRunes(e.UserAgent, 255)
+}
+
+// truncateRunes cuts s to at most n characters (varchar sizes count
+// characters, and cutting bytes could split a multi-byte character).
+func truncateRunes(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	return string([]rune(s)[:n])
 }
 
 func shouldLog(method string) bool {

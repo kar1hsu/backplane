@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/kar1hsu/backplane/internal/model"
+	"github.com/kar1hsu/backplane/internal/pkg/cache"
 	"github.com/kar1hsu/backplane/internal/pkg/setting"
 	"github.com/kar1hsu/backplane/internal/pkg/utils"
 	"github.com/kar1hsu/backplane/internal/repository"
@@ -32,18 +33,20 @@ type CreateUserRequest struct {
 	Nickname string `json:"nickname"`
 	Email    string `json:"email"`
 	Phone    string `json:"phone"`
-	Status   *int8  `json:"status"`
+	Status   *int8  `json:"status" binding:"omitempty,oneof=0 1"`
 	RoleIDs  []uint `json:"role_ids"`
 }
 
+// UpdateUserRequest: nil fields are left unchanged; a non-nil empty string
+// clears the field.
 type UpdateUserRequest struct {
-	Nickname string `json:"nickname"`
-	Email    string `json:"email"`
-	Phone    string `json:"phone"`
-	Avatar   string `json:"avatar"`
-	Status   *int8  `json:"status"`
-	Password string `json:"password" binding:"omitempty,min=6,max=72"`
-	RoleIDs  []uint `json:"role_ids"`
+	Nickname *string `json:"nickname"`
+	Email    *string `json:"email"`
+	Phone    *string `json:"phone"`
+	Avatar   *string `json:"avatar"`
+	Status   *int8   `json:"status" binding:"omitempty,oneof=0 1"`
+	Password string  `json:"password" binding:"omitempty,min=6,max=72"`
+	RoleIDs  []uint  `json:"role_ids"`
 }
 
 func (s *UserService) Create(ctx context.Context, op Operator, req *CreateUserRequest) error {
@@ -93,6 +96,13 @@ func (s *UserService) Create(ctx context.Context, op Operator, req *CreateUserRe
 			}
 			return err
 		}
+		if status == 0 {
+			// Create skips zero values on columns with a default (status has
+			// default:1), so a disabled user would be stored as enabled.
+			if err := s.userRepo.UpdateColumns(ctx, user.ID, map[string]interface{}{"status": 0}); err != nil {
+				return err
+			}
+		}
 		if len(roles) > 0 {
 			return s.userRepo.SetRoles(ctx, user.ID, uniqueIDs(req.RoleIDs))
 		}
@@ -140,42 +150,46 @@ func (s *UserService) Update(ctx context.Context, op Operator, id uint, req *Upd
 		}
 	}
 
-	if req.Nickname != "" {
-		user.Nickname = req.Nickname
-	}
-	if req.Email != "" {
-		user.Email = req.Email
-	}
-	if req.Phone != "" {
-		user.Phone = req.Phone
-	}
-	if req.Avatar != "" {
-		user.Avatar = req.Avatar
+	// Write only what this request changes, so a concurrent edit (say, a
+	// password reset) is not overwritten with the stale row read above.
+	columns := make(map[string]interface{})
+	for column, value := range map[string]*string{
+		"nickname": req.Nickname, "email": req.Email, "phone": req.Phone, "avatar": req.Avatar,
+	} {
+		if value != nil {
+			columns[column] = *value
+		}
 	}
 	if statusChanged {
-		user.Status = *req.Status
+		columns["status"] = *req.Status
 	}
 	if req.Password != "" {
 		hashed, err := utils.HashPassword(req.Password)
 		if err != nil {
 			return errors.New("密码加密失败")
 		}
-		user.Password = hashed
+		columns["password"] = hashed
 	}
 	// 改密 / 改状态 / 改角色都使该用户已签发的 token 失效（会话撤销）
 	if req.Password != "" || statusChanged || rolesChanged {
-		user.TokenVersion++
+		columns["token_version"] = gorm.Expr("token_version + 1")
 	}
 
-	return repository.Transaction(ctx, func(ctx context.Context) error {
-		if err := s.userRepo.Update(ctx, user); err != nil {
+	if err := repository.Transaction(ctx, func(ctx context.Context) error {
+		if err := s.userRepo.UpdateColumns(ctx, id, columns); err != nil {
 			return err
 		}
 		if rolesChanged {
 			return s.userRepo.SetRoles(ctx, id, uniqueIDs(req.RoleIDs))
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	if rolesChanged {
+		cache.ClearUserPermissions(id)
+	}
+	return nil
 }
 
 func (s *UserService) Delete(ctx context.Context, id, currentUserID uint) error {

@@ -33,17 +33,36 @@ func (d *RoleRepo) Update(ctx context.Context, role *model.SysRole) error {
 	return d.BaseRepo.Update(ctx, role, "Name", "Sort", "Status", "Remark")
 }
 
-// Delete soft-deletes the role, clears its menu associations (sys_role_menu),
-// and mangles the code so the unique index is freed — letting the same code be
-// reused later. The soft-deleted row is kept for audit.
+// Delete soft-deletes the role, clears its menu and user associations
+// (sys_role_menu, sys_user_role), and mangles the code so the unique index is
+// freed — letting the same code be reused later. The soft-deleted row is kept
+// for audit.
 func (d *RoleRepo) Delete(ctx context.Context, id uint) error {
 	return Transaction(ctx, func(ctx context.Context) error {
 		if err := dbFrom(ctx).Model(&model.SysRole{}).Where("id = ?", id).
-			Update("code", gorm.Expr("CONCAT('del#', id, '#', LEFT(code, 40))")).Error; err != nil {
+			Update("code", gorm.Expr("CONCAT('del#', id, '#', SUBSTR(code, 1, 40))")).Error; err != nil {
+			return err
+		}
+		if err := dbFrom(ctx).Exec("DELETE FROM sys_user_role WHERE sys_role_id = ?", id).Error; err != nil {
 			return err
 		}
 		return dbFrom(ctx).Select("Menus").Delete(&model.SysRole{ID: id}).Error
 	})
+}
+
+// ListByMenuIDs returns the roles holding any of the given menus.
+func (d *RoleRepo) ListByMenuIDs(ctx context.Context, menuIDs []uint) ([]model.SysRole, error) {
+	var roles []model.SysRole
+	if len(menuIDs) == 0 {
+		return roles, nil
+	}
+	err := dbFrom(ctx).
+		Where("id IN (?)", dbFrom(ctx).Table("sys_role_menu").Select("sys_role_id").Where("sys_menu_id IN ?", menuIDs)).
+		Find(&roles).Error
+	if err != nil {
+		return nil, err
+	}
+	return roles, nil
 }
 
 func (d *RoleRepo) GetByIDs(ctx context.Context, ids []uint) ([]model.SysRole, error) {

@@ -39,7 +39,7 @@ func (h *APIHandler) GetByID(c *gin.Context) {
 	}
 	api, err := h.svc.GetByID(c.Request.Context(), uint(id))
 	if err != nil {
-		response.Fail(c, errcode.ErrNotFound, "API 不存在")
+		failLookup(c, err, errcode.ErrNotFound, "API 不存在")
 		return
 	}
 	response.OK(c, api)
