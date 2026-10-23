@@ -60,29 +60,42 @@ func TestUserPermissionAndConfigCache(t *testing.T) {
 
 func TestLoginLimiterAndTokenBlacklist(t *testing.T) {
 	server := setupRedisStore(t)
+	const window = 15 * time.Minute
 
-	for attempt := int64(1); attempt <= loginLimitMax; attempt++ {
-		count, err := IncrLoginFail("admin", "127.0.0.1")
+	for attempt := int64(1); attempt <= 3; attempt++ {
+		count, err := IncrLoginFail("admin", "127.0.0.1", window)
 		if err != nil {
 			t.Fatalf("IncrLoginFail() attempt %d error = %v", attempt, err)
 		}
 		if count != attempt {
 			t.Fatalf("attempt %d count = %d", attempt, count)
 		}
-		if attempt < loginLimitMax && IsLoginLocked("admin", "127.0.0.1") {
-			t.Fatalf("login locked too early at attempt %d", attempt)
-		}
 	}
-	if !IsLoginLocked("admin", "127.0.0.1") {
-		t.Fatal("login should be locked after the configured attempt limit")
-	}
-	if ttl := GetLoginLockTTL("admin", "127.0.0.1"); ttl <= 0 || ttl > loginLimitWindow {
+	if ttl := GetLoginLockTTL("admin", "127.0.0.1"); ttl <= 0 || ttl > window {
 		t.Fatalf("login lock TTL = %v", ttl)
 	}
 
-	server.FastForward(loginLimitWindow + time.Second)
-	if IsLoginLocked("admin", "127.0.0.1") {
-		t.Fatal("login remained locked after the TTL expired")
+	// Case and padding variants share the counter.
+	if count, _ := IncrLoginFail(" ADMIN ", "127.0.0.1", window); count != 4 {
+		t.Fatalf("normalized username count = %d, want 4", count)
+	}
+	// Another IP has its own budget.
+	if count, _ := IncrLoginFail("admin", "10.0.0.1", window); count != 1 {
+		t.Fatalf("other IP count = %d, want 1", count)
+	}
+
+	DecrLoginFail("admin", "127.0.0.1")
+	if count, _ := IncrLoginFail("admin", "127.0.0.1", window); count != 4 {
+		t.Fatalf("count after DecrLoginFail = %d, want 4", count)
+	}
+
+	server.FastForward(window + time.Second)
+	if count, _ := IncrLoginFail("admin", "127.0.0.1", window); count != 1 {
+		t.Fatalf("count after the window expired = %d, want 1", count)
+	}
+	ClearLoginFail("admin", "127.0.0.1")
+	if ttl := GetLoginLockTTL("admin", "127.0.0.1"); ttl > 0 {
+		t.Fatalf("ClearLoginFail() left TTL %v", ttl)
 	}
 
 	if err := BlacklistToken("signed-token", time.Minute); err != nil {
@@ -94,14 +107,6 @@ func TestLoginLimiterAndTokenBlacklist(t *testing.T) {
 	server.FastForward(time.Minute + time.Second)
 	if IsTokenBlacklisted("signed-token") {
 		t.Fatal("blacklisted token remained after its TTL expired")
-	}
-
-	if _, err := IncrLoginFail("admin", "127.0.0.1"); err != nil {
-		t.Fatalf("IncrLoginFail() after expiry error = %v", err)
-	}
-	ClearLoginFail("admin", "127.0.0.1")
-	if IsLoginLocked("admin", "127.0.0.1") {
-		t.Fatal("ClearLoginFail() did not reset the limiter")
 	}
 }
 

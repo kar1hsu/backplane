@@ -21,7 +21,12 @@ type definition struct {
 	IsPublic bool
 }
 
-const ResourceDomainKey = "site.resource_domain"
+const (
+	ResourceDomainKey    = "site.resource_domain"
+	LoginFailLimitKey    = "security.login_fail_limit"
+	LoginLockMinutesKey  = "security.login_lock_minutes"
+	PasswordMinLengthKey = "security.password_min_length"
+)
 
 // registry lists the built-in configs. Add new tunables here; they are seeded on
 // next startup (idempotently) and editable from the admin UI afterwards.
@@ -36,9 +41,9 @@ var registry = []definition{
 	{Group: "用户", Key: "user.allow_register", Name: "允许注册", Type: "bool", Value: "false", Remark: "是否开放自助注册"},
 	{Group: "用户", Key: "user.default_role", Name: "默认角色编码", Type: "string", Value: "", Remark: "注册用户默认角色"},
 
-	{Group: "安全", Key: "security.login_fail_limit", Name: "登录失败锁定次数", Type: "int", Value: "5"},
-	{Group: "安全", Key: "security.login_lock_minutes", Name: "锁定时长(分钟)", Type: "int", Value: "15"},
-	{Group: "安全", Key: "security.password_min_length", Name: "密码最小长度", Type: "int", Value: "6"},
+	{Group: "安全", Key: LoginFailLimitKey, Name: "登录失败锁定次数", Type: "int", Value: "5", Remark: "同一用户名 + IP 在锁定时长内允许的登录尝试次数"},
+	{Group: "安全", Key: LoginLockMinutesKey, Name: "锁定时长(分钟)", Type: "int", Value: "15"},
+	{Group: "安全", Key: PasswordMinLengthKey, Name: "密码最小长度", Type: "int", Value: "6", Remark: "创建用户、修改密码时生效，不低于 6"},
 
 	{Group: "日志", Key: "log.operation_retain_days", Name: "操作日志保留天数", Type: "int", Value: "30", Remark: "留存清理任务读取此值，0 表示不清理"},
 }

@@ -19,7 +19,18 @@ type Config struct {
 	Log      LogConfig      `mapstructure:"log"`
 	Storage  StorageConfig  `mapstructure:"storage"`
 	Task     TaskConfig     `mapstructure:"task"`
+	Seed     SeedConfig     `mapstructure:"seed"`
 }
+
+// SeedConfig drives the one-time fresh-install seed.
+type SeedConfig struct {
+	// AdminPassword is the initial password of the built-in "admin" account.
+	// Empty generates a random one and prints it once to stdout.
+	AdminPassword string `mapstructure:"admin_password"`
+}
+
+// minSeedAdminPasswordLen is the minimum length of a configured seed password.
+const minSeedAdminPasswordLen = 8
 
 type TaskConfig struct {
 	Concurrency int      `mapstructure:"concurrency"`
@@ -159,6 +170,8 @@ func setConfigDefaults() {
 		"webp": "image/webp",
 	})
 	viper.SetDefault("task.concurrency", 10)
+	// Registered so SEED_ADMIN_PASSWORD can be supplied by env alone.
+	viper.SetDefault("seed.admin_password", "")
 }
 
 // InitTimezone sets the process-wide time.Local from config so that every
@@ -195,6 +208,9 @@ func validateConfig() error {
 	}
 	if len(Cfg.JWT.Secret) < minJWTSecretLen {
 		return fmt.Errorf("jwt.secret must be at least %d bytes", minJWTSecretLen)
+	}
+	if p := Cfg.Seed.AdminPassword; p != "" && len(p) < minSeedAdminPasswordLen {
+		return fmt.Errorf("seed.admin_password must be at least %d characters", minSeedAdminPasswordLen)
 	}
 	for _, proxy := range Cfg.Server.TrustedProxies {
 		if net.ParseIP(proxy) != nil {

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/kar1hsu/backplane/internal/app"
 	"github.com/kar1hsu/backplane/internal/pkg/errcode"
 	"github.com/kar1hsu/backplane/internal/pkg/response"
 	"github.com/kar1hsu/backplane/internal/repository"
@@ -20,7 +21,9 @@ func NewConfigHandler() *ConfigHandler {
 func (h *ConfigHandler) Public(c *gin.Context) {
 	list, err := h.repo.ListPublic(c.Request.Context())
 	if err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+		// Unauthenticated endpoint: log the cause, don't echo DB errors.
+		app.Log.Errorw("list public configs failed", "err", err)
+		response.Fail(c, errcode.ErrServer, "服务器内部错误")
 		return
 	}
 	out := make(map[string]string, len(list))

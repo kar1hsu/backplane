@@ -64,6 +64,7 @@ git switch naive-ui
 
 - **认证与安全**：JWT 登录、Token 黑名单、密码 bcrypt 加密、登录失败限流。
 - **RBAC 权限**：Casbin 路由鉴权，支持目录、菜单、按钮三级权限和路径参数匹配。
+- **防越权**：每次请求按数据库中启用的角色鉴权，改动即时生效；只有超级管理员能授予超级管理员角色、配置菜单关联的 API；其他管理员只能分配自己拥有的菜单，也不能修改自己的角色与状态。
 - **权限自动同步**：角色分配菜单后，根据菜单关联的 API 自动维护 Casbin Policy。
 - **系统管理**：用户、角色、菜单、API 和运行时配置统一管理。
 - **操作审计**：记录操作人、模块、请求与响应、执行结果、来源 IP 和耗时，支持检索与清理。
@@ -98,7 +99,7 @@ docker compose up -d --build
 
 启动后访问 [http://localhost:8080](http://localhost:8080)。
 
-默认管理员账号：`admin` / `admin123`。首次启动会自动创建数据表和基础权限数据，生产环境部署前请修改默认密码和数据库密码。
+首次启动会自动创建数据表、基础权限数据和超级管理员 `admin`。初始密码取自 `.env` 的 `ADMIN_PASSWORD`；留空则随机生成，只在首次启动时打印一次，可用 `docker compose logs server` 查看。登录后请立即修改。
 
 ### 本地开发
 
@@ -110,6 +111,7 @@ cd backplane
 
 cp config/config.yaml.example config/config.yaml
 # 修改 config/config.yaml 中的数据库、Redis 配置，并把 openssl rand -hex 32 的输出填入 jwt.secret
+# 超级管理员 admin 的初始密码取自 seed.admin_password；留空则随机生成并在首次启动时打印到终端
 # jwt.secret 为空、为旧的默认占位值或短于 32 字节时，任何模式下都会拒绝启动
 
 cd web/admin

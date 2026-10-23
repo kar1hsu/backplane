@@ -46,6 +46,34 @@ func (d *RoleRepo) Delete(ctx context.Context, id uint) error {
 	})
 }
 
+func (d *RoleRepo) GetByIDs(ctx context.Context, ids []uint) ([]model.SysRole, error) {
+	var roles []model.SysRole
+	if len(ids) == 0 {
+		return roles, nil
+	}
+	if err := dbFrom(ctx).Where("id IN ?", ids).Find(&roles).Error; err != nil {
+		return nil, err
+	}
+	return roles, nil
+}
+
+// GetMenuIDsByCodes returns the IDs of every menu granted to the enabled roles
+// with the given codes.
+func (d *RoleRepo) GetMenuIDsByCodes(ctx context.Context, codes []string) ([]uint, error) {
+	var ids []uint
+	if len(codes) == 0 {
+		return ids, nil
+	}
+	err := dbFrom(ctx).Table("sys_role_menu").
+		Joins("JOIN sys_role ON sys_role.id = sys_role_menu.sys_role_id").
+		Where("sys_role.code IN ? AND sys_role.status = ? AND sys_role.deleted_at IS NULL", codes, 1).
+		Distinct().Pluck("sys_role_menu.sys_menu_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 func (d *RoleRepo) ListAll(ctx context.Context) ([]model.SysRole, error) {
 	var roles []model.SysRole
 	if err := dbFrom(ctx).Where("status = 1").Order("sort ASC").Find(&roles).Error; err != nil {

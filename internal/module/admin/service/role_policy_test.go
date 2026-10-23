@@ -37,6 +37,8 @@ e = some(where (p.eft == allow))
 m = g(r.sub, p.sub) && keyMatch2(r.obj, p.obj) && r.act == p.act || r.sub == "admin"
 `
 
+var superAdmin = Operator{UserID: 1, RoleCodes: []string{model.SuperAdminRoleCode}}
+
 func TestSetMenusSynchronizesCasbinPolicies(t *testing.T) {
 	setupRolePolicyTestEnvironment(t)
 	ctx := context.Background()
@@ -69,13 +71,13 @@ func TestSetMenusSynchronizesCasbinPolicies(t *testing.T) {
 	}
 
 	service := NewRoleService()
-	if err := service.SetMenus(ctx, role.ID, []uint{readMenu.ID}); err != nil {
+	if err := service.SetMenus(ctx, superAdmin, role.ID, []uint{readMenu.ID}); err != nil {
 		t.Fatalf("SetMenus(read) error = %v", err)
 	}
 	assertEnforced(t, app.Enforcer, "editor", "/admin/users/42", "GET", true)
 	assertEnforced(t, app.Enforcer, "editor", "/admin/configs", "PUT", false)
 
-	if err := service.SetMenus(ctx, role.ID, []uint{writeMenu.ID}); err != nil {
+	if err := service.SetMenus(ctx, superAdmin, role.ID, []uint{writeMenu.ID}); err != nil {
 		t.Fatalf("SetMenus(write) error = %v", err)
 	}
 	assertEnforced(t, app.Enforcer, "editor", "/admin/users/42", "GET", false)
@@ -124,10 +126,10 @@ func TestSetMenusWithSharedAPIs(t *testing.T) {
 	}
 
 	service := NewRoleService()
-	if err := service.SetMenus(ctx, role.ID, []uint{detailMenu.ID}); err != nil {
+	if err := service.SetMenus(ctx, superAdmin, role.ID, []uint{detailMenu.ID}); err != nil {
 		t.Fatalf("SetMenus(detail) error = %v", err)
 	}
-	if err := service.SetMenus(ctx, role.ID, []uint{detailMenu.ID, editMenu.ID}); err != nil {
+	if err := service.SetMenus(ctx, superAdmin, role.ID, []uint{detailMenu.ID, editMenu.ID}); err != nil {
 		t.Fatalf("SetMenus(detail, edit) error = %v", err)
 	}
 
@@ -146,7 +148,7 @@ func TestSetAPIsDeduplicatesRules(t *testing.T) {
 		t.Fatalf("create role: %v", err)
 	}
 
-	err := NewRoleService().SetAPIs(context.Background(), role.ID, []RoleAPIItem{
+	err := NewRoleService().SetAPIs(context.Background(), superAdmin, role.ID, []RoleAPIItem{
 		{Path: "/admin/users", Method: "GET"},
 		{Path: "/admin/users", Method: "GET"},
 		{Path: "/admin/users/:id", Method: "DELETE"},
@@ -170,7 +172,7 @@ func setupRolePolicyTestEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open SQLite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.SysRole{}, &model.SysMenu{}, &model.SysAPI{}); err != nil {
+	if err := db.AutoMigrate(&model.SysUser{}, &model.SysRole{}, &model.SysMenu{}, &model.SysAPI{}, &model.SysConfig{}); err != nil {
 		t.Fatalf("AutoMigrate() error = %v", err)
 	}
 	previousDB := app.DB
@@ -262,7 +264,7 @@ func TestEnforceConcurrentWithPolicyUpdates(t *testing.T) {
 	}
 
 	for i := 0; i < 20; i++ {
-		err := service.SetAPIs(context.Background(), role.ID, []RoleAPIItem{
+		err := service.SetAPIs(context.Background(), superAdmin, role.ID, []RoleAPIItem{
 			{Path: "/admin/users/:id", Method: "GET"},
 			{Path: fmt.Sprintf("/admin/items/%d", i), Method: "PUT"},
 		})

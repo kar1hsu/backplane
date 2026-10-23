@@ -28,13 +28,30 @@ func (d *UserRepo) GetByUsername(ctx context.Context, username string) (*model.S
 	return &user, nil
 }
 
-// GetTokenVersion returns the user's current token version (session revocation).
-func (d *UserRepo) GetTokenVersion(ctx context.Context, id uint) (int, error) {
+// AuthState is what AdminAuth needs to authorize a request: the live session
+// version, the account status and the codes of the user's enabled roles.
+type AuthState struct {
+	TokenVersion int
+	Status       int8
+	RoleCodes    []string
+}
+
+// GetAuthState loads the user's current auth state from the DB, so revoked
+// sessions, disabled accounts and disabled or deleted roles take effect at once
+// instead of trusting whatever was true when the token was issued.
+func (d *UserRepo) GetAuthState(ctx context.Context, id uint) (*AuthState, error) {
 	var user model.SysUser
-	if err := dbFrom(ctx).Select("token_version").First(&user, id).Error; err != nil {
-		return 0, err
+	if err := dbFrom(ctx).Select("id", "status", "token_version").First(&user, id).Error; err != nil {
+		return nil, err
 	}
-	return user.TokenVersion, nil
+	var codes []string
+	if err := dbFrom(ctx).Model(&model.SysRole{}).
+		Joins("JOIN sys_user_role ON sys_user_role.sys_role_id = sys_role.id").
+		Where("sys_user_role.sys_user_id = ? AND sys_role.status = ?", id, 1).
+		Pluck("sys_role.code", &codes).Error; err != nil {
+		return nil, err
+	}
+	return &AuthState{TokenVersion: user.TokenVersion, Status: user.Status, RoleCodes: codes}, nil
 }
 
 // Update writes only base columns; Roles is managed by SetRoles.

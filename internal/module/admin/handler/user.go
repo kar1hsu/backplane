@@ -28,8 +28,8 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Create(c.Request.Context(), &req); err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+	if err := h.svc.Create(c.Request.Context(), operatorFrom(c), &req); err != nil {
+		failWith(c, err)
 		return
 	}
 
@@ -76,8 +76,8 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Update(c.Request.Context(), uint(id), &req); err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+	if err := h.svc.Update(c.Request.Context(), operatorFrom(c), uint(id), &req); err != nil {
+		failWith(c, err)
 		return
 	}
 	response.OK(c, nil)
@@ -91,7 +91,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.svc.Delete(c.Request.Context(), uint(id), middleware.GetUserID(c)); err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+		failWith(c, err)
 		return
 	}
 	response.OK(c, nil)
