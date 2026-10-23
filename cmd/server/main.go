@@ -47,7 +47,17 @@ func main() {
 	)
 
 	addr := fmt.Sprintf(":%d", app.Cfg.Server.Port)
-	srv := &http.Server{Addr: addr, Handler: router}
+	// Timeouts stop slow clients (e.g. Slowloris) from pinning connections.
+	// ReadTimeout covers the whole request, so it must leave room for an
+	// upload of storage.max_size on a slow link.
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 
 	go func() {
 		app.Log.Infof("server starting at %s", addr)

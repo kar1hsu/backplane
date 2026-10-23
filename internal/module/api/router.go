@@ -22,5 +22,7 @@ func (m *Module) RegisterRoutes(rg *gin.RouterGroup) {
 
 	rg.GET("/health", healthHandler.Health)
 	rg.GET("/configs/public", configHandler.Public)
+	// Demo endpoint, intentionally unauthenticated (see README). Add auth such
+	// as middleware.AdminAuth() before exposing it in a real deployment.
 	rg.POST("/upload", uploadHandler.Upload)
 }

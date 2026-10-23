@@ -40,7 +40,7 @@ It provides the infrastructure most admin projects repeatedly rebuild: users and
 - **Operation auditing:** operator, module, request, response, result, source IP, and latency with search and cleanup.
 - **Settings and cache:** database-backed settings with Redis caching for immediate multi-instance updates.
 - **Task system:** immediate, delayed, unique, and cron tasks powered by Asynq.
-- **File uploads:** local storage, date folders, randomized filenames, size limits, and MIME validation.
+- **File uploads:** local storage, date folders, randomized filenames, size limits, and MIME validation (`/api/upload` is an unauthenticated demo endpoint; see [Build Your Business Module](#build-your-business-module)).
 - **Delivery and deployment:** embedded frontend, MySQL / PostgreSQL support, and Docker Compose.
 
 ## Tech Stack
@@ -61,12 +61,15 @@ cd backplane/deploy
 
 cp .env.example .env
 cp ../config/config.yaml.example config.yaml
+# Edit .env: set REDIS_PASSWORD, and set JWT_SECRET to the output of openssl rand -hex 32
 docker compose up -d --build
 ```
 
+`.env` is the single source of the database and Redis passwords and the JWT secret: compose injects them into the app, overriding the same keys in `config.yaml`. MySQL / PostgreSQL / Redis ports are published on `127.0.0.1` only.
+
 Open [http://localhost:8080](http://localhost:8080) after startup.
 
-The default administrator account is `admin` / `admin123`. The first startup creates the schema and base permission data automatically. Change the default password, database passwords, and `jwt.secret` before production deployment.
+The default administrator account is `admin` / `admin123`. The first startup creates the schema and base permission data automatically. Change the default password and database passwords before production deployment.
 
 ### Local Development
 
@@ -77,7 +80,8 @@ git clone -b naive-ui git@github.com:kar1hsu/backplane.git
 cd backplane
 
 cp config/config.yaml.example config/config.yaml
-# Update the database, Redis, and JWT settings in config/config.yaml
+# Update the database and Redis settings in config/config.yaml, and set jwt.secret to the output of openssl rand -hex 32
+# The server refuses to start in any mode if jwt.secret is empty, the old default placeholder, or shorter than 32 bytes
 
 cd web/admin
 npm ci
@@ -99,6 +103,9 @@ go run ./cmd/scheduler
 ## Build Your Business Module
 
 Backplane registers routes by module. Use `internal/module/api` as the starting point for a business module, keeping Handler, Service, and Repository responsibilities separate.
+
+> [!WARNING]
+> `POST /api/upload` in `internal/module/api` is a demo endpoint with **no authentication**: anyone can write files to the server. Before deploying for real, add authentication (for example `middleware.AdminAuth()`) and rate limiting for your use case, or remove the route.
 
 A module only needs to implement `server.Module`:
 

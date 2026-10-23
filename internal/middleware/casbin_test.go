@@ -33,9 +33,9 @@ func TestCasbinRBAC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewModelFromString() error = %v", err)
 	}
-	enforcer, err := casbin.NewEnforcer(model)
+	enforcer, err := casbin.NewSyncedEnforcer(model)
 	if err != nil {
-		t.Fatalf("NewEnforcer() error = %v", err)
+		t.Fatalf("NewSyncedEnforcer() error = %v", err)
 	}
 	if _, err := enforcer.AddPolicy("editor", "/projects/:id", http.MethodGet); err != nil {
 		t.Fatalf("AddPolicy(editor) error = %v", err)

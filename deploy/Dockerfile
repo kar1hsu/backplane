@@ -28,7 +28,10 @@ WORKDIR /app
 COPY --from=backend /app/server .
 COPY --from=backend /app/worker .
 COPY --from=backend /app/scheduler .
-COPY config/config.yaml ./config/
+# Bake in the tracked example (never the git-ignored local config.yaml, which
+# may hold real secrets). docker-compose mounts deploy/config.yaml over it, and
+# every key can be overridden by env vars such as JWT_SECRET.
+COPY config/config.yaml.example ./config/config.yaml
 COPY config/rbac_model.conf ./config/
 
 EXPOSE 8080

@@ -134,9 +134,11 @@ func (s *RoleService) ListAll(ctx context.Context) ([]model.SysRole, error) {
 }
 
 // SetMenus assigns menus to a role and rebuilds the role's Casbin policies from
-// the menus' associated APIs. Casbin cannot share the DB transaction, so its
-// operations are error-checked and, on failure, the in-memory policy is reloaded
-// from DB to stay consistent.
+// the menus' associated APIs. The enforcer auto-saves each policy change to the
+// adapter, so no SavePolicy (which truncates and rewrites the whole table) is
+// needed. Casbin cannot share the DB transaction, so its operations are
+// error-checked and, on failure, the in-memory policy is reloaded from DB to
+// stay consistent.
 func (s *RoleService) SetMenus(ctx context.Context, roleID uint, menuIDs []uint) error {
 	if err := s.roleRepo.SetMenus(ctx, roleID, menuIDs); err != nil {
 		return err
@@ -154,20 +156,17 @@ func (s *RoleService) SetMenus(ctx context.Context, roleID uint, menuIDs []uint)
 		if err != nil {
 			return reloadPolicyError("读取菜单权限失败", err)
 		}
-		var policies [][]string
+		var policies rolePolicies
 		for _, m := range menus {
 			for _, api := range m.APIs {
-				policies = append(policies, []string{role.Code, api.Path, api.Method})
+				policies.add(role.Code, api.Path, api.Method)
 			}
 		}
-		if len(policies) > 0 {
-			if _, err := app.Enforcer.AddPolicies(policies); err != nil {
+		if len(policies.rules) > 0 {
+			if _, err := app.Enforcer.AddPolicies(policies.rules); err != nil {
 				return reloadPolicyError("写入权限策略失败", err)
 			}
 		}
-	}
-	if err := app.Enforcer.SavePolicy(); err != nil {
-		return reloadPolicyError("保存权限策略失败", err)
 	}
 	cache.ClearAllPermissionCache()
 	return nil
@@ -182,20 +181,38 @@ func (s *RoleService) SetAPIs(ctx context.Context, roleID uint, apis []RoleAPIIt
 	if _, err := app.Enforcer.RemoveFilteredPolicy(0, role.Code); err != nil {
 		return reloadPolicyError("清除旧权限策略失败", err)
 	}
-	var policies [][]string
+	var policies rolePolicies
 	for _, api := range apis {
-		policies = append(policies, []string{role.Code, api.Path, api.Method})
+		policies.add(role.Code, api.Path, api.Method)
 	}
-	if len(policies) > 0 {
-		if _, err := app.Enforcer.AddPolicies(policies); err != nil {
+	if len(policies.rules) > 0 {
+		if _, err := app.Enforcer.AddPolicies(policies.rules); err != nil {
 			return reloadPolicyError("写入权限策略失败", err)
 		}
 	}
-	if err := app.Enforcer.SavePolicy(); err != nil {
-		return reloadPolicyError("保存权限策略失败", err)
-	}
 	cache.ClearAllPermissionCache()
 	return nil
+}
+
+// rolePolicies collects (role, path, method) rules without duplicates. Menus
+// often share an API (用户详情 and 编辑用户 both grant GET /admin/users/:id),
+// and casbin_rule has a unique index, so one duplicate fails the whole batch
+// insert after the role's old rules were already removed.
+type rolePolicies struct {
+	rules [][]string
+	seen  map[[3]string]struct{}
+}
+
+func (p *rolePolicies) add(roleCode, path, method string) {
+	key := [3]string{roleCode, path, method}
+	if _, ok := p.seen[key]; ok {
+		return
+	}
+	if p.seen == nil {
+		p.seen = make(map[[3]string]struct{})
+	}
+	p.seen[key] = struct{}{}
+	p.rules = append(p.rules, []string{roleCode, path, method})
 }
 
 func reloadPolicyError(operation string, cause error) error {
