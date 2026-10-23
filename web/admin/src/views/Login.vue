@@ -23,7 +23,7 @@
           </el-button>
         </el-form-item>
       </el-form>
-      <p v-if="isDev" class="login-hint">默认账号: admin / admin123</p>
+      <p v-if="isDev" class="login-hint">初始账号 admin，密码见首次启动日志或 seed.admin_password</p>
     </div>
   </div>
 </template>
