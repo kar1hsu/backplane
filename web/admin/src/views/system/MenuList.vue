@@ -11,7 +11,7 @@
         <el-table-column prop="name" label="菜单名称" width="200" />
         <el-table-column prop="icon" label="图标" width="80">
           <template #default="{ row }">
-            <el-icon v-if="row.icon"><component :is="row.icon" /></el-icon>
+            <el-icon v-if="resolveIcon(row.icon)"><component :is="resolveIcon(row.icon)" /></el-icon>
           </template>
         </el-table-column>
         <el-table-column prop="path" label="路由路径" />
@@ -53,6 +53,7 @@
             :props="{ label: 'name', value: 'id', children: 'children' }"
             check-strictly
             clearable
+            :value-on-clear="0"
             placeholder="留空为顶级菜单"
             style="width: 100%"
           />
@@ -114,6 +115,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { getMenuTree, createMenu, updateMenu, deleteMenu } from '@/api/menu'
 import { useUserStore } from '@/store/user'
+import { resolveIcon } from '@/utils/icons'
 
 const userStore = useUserStore()
 
@@ -123,8 +125,21 @@ const dialogVisible = ref(false)
 const formRef = ref<FormInstance>()
 const treeData = ref<any[]>([])
 
+// A menu cannot move under itself, one of its descendants or a button; the
+// backend rejects those too, this just keeps them out of the picker.
+function toParentOptions(nodes: any[], selfId: number, insideSelf = false): any[] {
+  return nodes.map((node) => {
+    const blocked = insideSelf || (selfId !== 0 && node.id === selfId)
+    return {
+      ...node,
+      disabled: blocked || node.type === 2,
+      children: toParentOptions(node.children || [], selfId, blocked),
+    }
+  })
+}
+
 const parentOptions = computed(() => {
-  return [{ id: 0, name: '顶级菜单', children: treeData.value }]
+  return [{ id: 0, name: '顶级菜单', children: toParentOptions(treeData.value, form.id) }]
 })
 
 const defaultForm = {

@@ -48,6 +48,7 @@ const rules = {
 }
 
 async function handleLogin() {
+  if (loading.value) return // Enter can fire again while a login is in flight
   await formRef.value?.validate()
   loading.value = true
   try {

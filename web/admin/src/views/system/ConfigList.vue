@@ -27,13 +27,14 @@
             <el-table-column label="值" min-width="360">
               <template #default="{ row }">
                 <!-- 按类型给合理宽高：数字短、文本中等、select 中等，text/json 宽且高 -->
-                <el-switch v-if="row.type === 'bool'" v-model="row.value" active-value="true" inactive-value="false" />
-                <el-select v-else-if="row.type === 'select'" v-model="row.value" style="width: 320px" placeholder="请选择">
+                <el-switch v-if="row.type === 'bool'" v-model="row.value" active-value="true" inactive-value="false" :disabled="!isEditable(row)" />
+                <el-select v-else-if="row.type === 'select'" v-model="row.value" style="width: 320px" placeholder="请选择" :disabled="!isEditable(row)">
                   <el-option v-for="opt in parseOptions(row.options)" :key="opt.value" :label="opt.label" :value="opt.value" />
                 </el-select>
                 <el-input
                   v-else-if="row.type === 'json'"
                   v-model="row.value"
+                  :disabled="!isEditable(row)"
                   type="textarea"
                   :autosize="{ minRows: 3, maxRows: 12 }"
                   style="width: 100%; font-family: monospace"
@@ -41,6 +42,7 @@
                 <el-input
                   v-else-if="row.type === 'text'"
                   v-model="row.value"
+                  :disabled="!isEditable(row)"
                   type="textarea"
                   :autosize="{ minRows: 2, maxRows: 6 }"
                   style="width: 100%"
@@ -48,10 +50,11 @@
                 <el-input
                   v-else-if="row.type === 'int' || row.type === 'float'"
                   v-model="row.value"
+                  :disabled="!isEditable(row)"
                   style="width: 180px"
                   placeholder="数字"
                 />
-                <el-input v-else v-model="row.value" style="width: 360px" />
+                <el-input v-else v-model="row.value" style="width: 360px" :disabled="!isEditable(row)" />
               </template>
             </el-table-column>
             <el-table-column label="操作" width="190" fixed="right">
@@ -151,11 +154,29 @@ const grouped = computed<Record<string, any[]>>(() => {
 })
 const groups = computed(() => Object.keys(grouped.value))
 
+// Values as loaded, keyed by config key: "保存" submits only what changed, so
+// it cannot overwrite settings another admin edited in the meantime.
+const savedValues = new Map<string, string>()
+
+function isEditable(row: any): boolean {
+  return canEdit.value && row.editable !== false
+}
+
+// el-switch rewrites any value other than its active/inactive value to
+// "false", so bool values stored as "1" are normalized to "true" first.
+function normalizeValue(row: any): string {
+  const value = String(row.value ?? '')
+  if (row.type === 'bool') return value === 'true' || value === '1' ? 'true' : 'false'
+  return value
+}
+
 async function fetchData() {
   loading.value = true
   try {
     const res: any = await getConfigList()
-    configs.value = res.data || []
+    configs.value = (res.data || []).map((c: any) => ({ ...c, value: normalizeValue(c) }))
+    savedValues.clear()
+    for (const c of configs.value) savedValues.set(c.key, c.value)
     if ((!activeGroup.value || !groups.value.includes(activeGroup.value)) && groups.value.length) {
       activeGroup.value = groups.value[0]
     }
@@ -165,9 +186,15 @@ async function fetchData() {
 }
 
 async function handleSave() {
+  const items = configs.value
+    .map((c) => ({ key: c.key, value: String(c.value ?? '') }))
+    .filter((item) => item.value !== savedValues.get(item.key))
+  if (!items.length) {
+    ElMessage.info('没有需要保存的修改')
+    return
+  }
   saving.value = true
   try {
-    const items = configs.value.map((c) => ({ key: c.key, value: String(c.value ?? '') }))
     await batchUpdateConfig(items)
     ElMessage.success('保存成功')
     fetchData()
