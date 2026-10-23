@@ -16,10 +16,22 @@ import (
 type zapGormLogger struct {
 	level         gormlogger.LogLevel
 	slowThreshold time.Duration
+	// parameterized logs SQL with ? placeholders instead of the bound values,
+	// keeping password hashes, config values and audit payloads out of logs.
+	parameterized bool
 }
 
-func newGormLogger(level gormlogger.LogLevel) gormlogger.Interface {
-	return &zapGormLogger{level: level, slowThreshold: 200 * time.Millisecond}
+func newGormLogger(level gormlogger.LogLevel, parameterized bool) gormlogger.Interface {
+	return &zapGormLogger{level: level, slowThreshold: 200 * time.Millisecond, parameterized: parameterized}
+}
+
+// ParamsFilter implements gorm's logger.ParamsFilter: GORM calls it before
+// rendering the SQL handed to Trace.
+func (l *zapGormLogger) ParamsFilter(_ context.Context, sql string, params ...interface{}) (string, []interface{}) {
+	if l.parameterized {
+		return sql, nil
+	}
+	return sql, params
 }
 
 func (l *zapGormLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface {

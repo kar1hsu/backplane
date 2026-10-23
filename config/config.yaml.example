@@ -43,6 +43,11 @@ jwt:
 casbin:
   model_path: config/rbac_model.conf
 
+seed:
+  # 首次初始化时创建的超级管理员 admin 的密码（至少 8 位）。
+  # 留空则随机生成，并只在首次启动时打印到标准输出（docker compose logs server 可见）
+  admin_password: ""
+
 task:
   concurrency: 10                  # Worker 并发数
   queues:                          # 队列列表（按优先级从高到低）

@@ -26,7 +26,8 @@ func InitDatabase() error {
 	}
 
 	gormConfig := &gorm.Config{
-		Logger: newGormLogger(gormLogLevel),
+		// Bound values are only logged in debug mode (local development).
+		Logger: newGormLogger(gormLogLevel, Cfg.Server.Mode != "debug"),
 		// 把驱动层错误翻译成 gorm 哨兵错误，便于 errors.Is(err, gorm.ErrDuplicatedKey) 等判断
 		TranslateError: true,
 	}

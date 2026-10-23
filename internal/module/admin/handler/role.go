@@ -56,8 +56,8 @@ func (h *RoleHandler) Update(c *gin.Context) {
 		response.Fail(c, errcode.ErrParam, "参数错误: "+err.Error())
 		return
 	}
-	if err := h.svc.Update(c.Request.Context(), uint(id), &req); err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+	if err := h.svc.Update(c.Request.Context(), operatorFrom(c), uint(id), &req); err != nil {
+		failWith(c, err)
 		return
 	}
 	response.OK(c, nil)
@@ -69,8 +69,8 @@ func (h *RoleHandler) Delete(c *gin.Context) {
 		response.Fail(c, errcode.ErrParam, "参数错误")
 		return
 	}
-	if err := h.svc.Delete(c.Request.Context(), uint(id)); err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+	if err := h.svc.Delete(c.Request.Context(), operatorFrom(c), uint(id)); err != nil {
+		failWith(c, err)
 		return
 	}
 	response.OK(c, nil)
@@ -111,8 +111,8 @@ func (h *RoleHandler) SetMenus(c *gin.Context) {
 		response.Fail(c, errcode.ErrParam, "参数错误: "+err.Error())
 		return
 	}
-	if err := h.svc.SetMenus(c.Request.Context(), uint(id), req.MenuIDs); err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+	if err := h.svc.SetMenus(c.Request.Context(), operatorFrom(c), uint(id), req.MenuIDs); err != nil {
+		failWith(c, err)
 		return
 	}
 	response.OK(c, nil)
@@ -129,8 +129,8 @@ func (h *RoleHandler) SetAPIs(c *gin.Context) {
 		response.Fail(c, errcode.ErrParam, "参数错误: "+err.Error())
 		return
 	}
-	if err := h.svc.SetAPIs(c.Request.Context(), uint(id), req.APIs); err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+	if err := h.svc.SetAPIs(c.Request.Context(), operatorFrom(c), uint(id), req.APIs); err != nil {
+		failWith(c, err)
 		return
 	}
 	response.OK(c, nil)

@@ -45,15 +45,16 @@ func AdminAuth() gin.HandlerFunc {
 
 		// 会话撤销：比对 token 版本与用户当前版本
 		// 改密 / 禁用 / 改角色 / 删除用户后，旧 token 立即失效
-		version, err := userRepo.GetTokenVersion(c.Request.Context(), claims.UserID)
-		if err != nil || version != claims.TokenVersion {
+		state, err := userRepo.GetAuthState(c.Request.Context(), claims.UserID)
+		if err != nil || state.TokenVersion != claims.TokenVersion || state.Status != 1 {
 			response.Unauthorized(c, "登录状态已失效，请重新登录")
 			return
 		}
 
 		c.Set(CtxUserIDKey, claims.UserID)
 		c.Set(CtxUsernameKey, claims.Username)
-		c.Set(CtxRoleCodesKey, claims.RoleCodes)
+		// 角色以数据库为准（仅启用的角色），不信任 token 内容
+		c.Set(CtxRoleCodesKey, state.RoleCodes)
 		c.Next()
 	}
 }

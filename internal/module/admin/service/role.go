@@ -85,10 +85,18 @@ func (s *RoleService) GetByID(ctx context.Context, id uint) (*model.SysRole, err
 	return s.roleRepo.GetByID(ctx, id)
 }
 
-func (s *RoleService) Update(ctx context.Context, id uint, req *UpdateRoleRequest) error {
+func (s *RoleService) Update(ctx context.Context, op Operator, id uint, req *UpdateRoleRequest) error {
 	role, err := s.roleRepo.GetByID(ctx, id)
 	if err != nil {
 		return notFoundOr(err, "角色不存在")
+	}
+	if err := checkRoleWritable(op, role); err != nil {
+		return err
+	}
+	// AdminAuth only honors enabled roles, so disabling this one would lock
+	// every super admin out.
+	if role.Code == model.SuperAdminRoleCode && req.Status != nil && *req.Status != 1 {
+		return forbidden("超级管理员角色不可禁用")
 	}
 
 	if req.Name != "" {
@@ -104,13 +112,16 @@ func (s *RoleService) Update(ctx context.Context, id uint, req *UpdateRoleReques
 	return s.roleRepo.Update(ctx, role)
 }
 
-func (s *RoleService) Delete(ctx context.Context, id uint) error {
+func (s *RoleService) Delete(ctx context.Context, op Operator, id uint) error {
 	role, err := s.roleRepo.GetByID(ctx, id)
 	if err != nil {
 		return notFoundOr(err, "角色不存在")
 	}
 	if role.Code == model.SuperAdminRoleCode {
-		return errors.New("系统内置超级管理员角色不可删除")
+		return forbidden("系统内置超级管理员角色不可删除")
+	}
+	if err := checkRoleWritable(op, role); err != nil {
+		return err
 	}
 
 	if err := s.roleRepo.Delete(ctx, id); err != nil {
@@ -139,12 +150,34 @@ func (s *RoleService) ListAll(ctx context.Context) ([]model.SysRole, error) {
 // needed. Casbin cannot share the DB transaction, so its operations are
 // error-checked and, on failure, the in-memory policy is reloaded from DB to
 // stay consistent.
-func (s *RoleService) SetMenus(ctx context.Context, roleID uint, menuIDs []uint) error {
-	if err := s.roleRepo.SetMenus(ctx, roleID, menuIDs); err != nil {
-		return err
-	}
+//
+// A non-super admin may only grant menus they hold themselves, so the "edit
+// role" permission cannot be used to hand out more than the operator has.
+func (s *RoleService) SetMenus(ctx context.Context, op Operator, roleID uint, menuIDs []uint) error {
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
+		return notFoundOr(err, "角色不存在")
+	}
+	if err := checkRoleWritable(op, role); err != nil {
+		return err
+	}
+	if !op.IsSuperAdmin() {
+		owned, err := s.roleRepo.GetMenuIDsByCodes(ctx, op.RoleCodes)
+		if err != nil {
+			return err
+		}
+		ownedSet := make(map[uint]struct{}, len(owned))
+		for _, id := range owned {
+			ownedSet[id] = struct{}{}
+		}
+		for _, id := range menuIDs {
+			if _, ok := ownedSet[id]; !ok {
+				return forbidden("只能分配自己拥有的菜单权限")
+			}
+		}
+	}
+
+	if err := s.roleRepo.SetMenus(ctx, roleID, menuIDs); err != nil {
 		return err
 	}
 
@@ -172,7 +205,11 @@ func (s *RoleService) SetMenus(ctx context.Context, roleID uint, menuIDs []uint)
 	return nil
 }
 
-func (s *RoleService) SetAPIs(ctx context.Context, roleID uint, apis []RoleAPIItem) error {
+// SetAPIs grants raw API rules, bypassing menus, so it is super-admin only.
+func (s *RoleService) SetAPIs(ctx context.Context, op Operator, roleID uint, apis []RoleAPIItem) error {
+	if err := requireSuperAdmin(op, "只有超级管理员可以直接配置角色的 API 权限"); err != nil {
+		return err
+	}
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
 		return notFoundOr(err, "角色不存在")
@@ -213,6 +250,22 @@ func (p *rolePolicies) add(roleCode, path, method string) {
 	}
 	p.seen[key] = struct{}{}
 	p.rules = append(p.rules, []string{roleCode, path, method})
+}
+
+// checkRoleWritable: only a super admin may change the super-admin role, and a
+// non-super admin may not change a role they hold, which would let them grant
+// themselves more permissions.
+func checkRoleWritable(op Operator, role *model.SysRole) error {
+	if op.IsSuperAdmin() {
+		return nil
+	}
+	if role.Code == model.SuperAdminRoleCode {
+		return forbidden("只有超级管理员可以修改超级管理员角色")
+	}
+	if op.holdsRole(role.Code) {
+		return forbidden("不能修改自己所属的角色")
+	}
+	return nil
 }
 
 func reloadPolicyError(operation string, cause error) error {

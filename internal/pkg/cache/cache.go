@@ -3,6 +3,7 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -75,36 +76,32 @@ func ClearAllPermissionCache() {
 
 // ── Login Rate Limit ──
 
-const loginLimitMax = 5
-const loginLimitWindow = 15 * time.Minute
-
+// Attempts are counted per (username, client IP). Usernames are normalized so
+// case or padding variants — which MySQL's default collation resolves to the
+// same account — share one counter instead of each getting a fresh budget.
 func loginKey(username, ip string) string {
-	return "login:fail:" + username + ":" + ip
+	return "login:fail:" + strings.ToLower(strings.TrimSpace(username)) + ":" + ip
 }
 
-func IncrLoginFail(username, ip string) (int64, error) {
+// IncrLoginFail atomically counts one login attempt and returns the running
+// total. The window slides: every attempt pushes the expiry out again.
+func IncrLoginFail(username, ip string, window time.Duration) (int64, error) {
 	k := loginKey(username, ip)
 	count, err := store.Incr(k)
 	if err != nil {
 		return 0, err
 	}
-	if err := store.Expire(k, loginLimitWindow); err != nil {
+	if err := store.Expire(k, window); err != nil {
 		_ = store.Del(k)
 		return 0, err
 	}
 	return count, nil
 }
 
-func IsLoginLocked(username, ip string) bool {
-	val, err := store.Get(loginKey(username, ip))
-	if err != nil {
-		return false
-	}
-	var count int64
-	if _, err := fmt.Sscanf(val, "%d", &count); err != nil {
-		return false
-	}
-	return count >= loginLimitMax
+// DecrLoginFail gives back an attempt counted by IncrLoginFail, for logins that
+// failed on a server-side error rather than bad credentials.
+func DecrLoginFail(username, ip string) {
+	_, _ = store.Decr(loginKey(username, ip))
 }
 
 func ClearLoginFail(username, ip string) {

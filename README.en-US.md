@@ -35,6 +35,7 @@ It provides the infrastructure most admin projects repeatedly rebuild: users and
 
 - **Authentication and security:** JWT sessions, token blacklist, bcrypt password hashing, and login throttling.
 - **RBAC:** Casbin route authorization with directory, menu, and button permissions plus path-parameter matching.
+- **Privilege guards:** every request is authorized against the user's enabled roles in the database, so changes apply immediately. Only a super admin can grant the super-admin role or bind APIs to menus; other admins can only grant menus they hold and cannot change their own roles or status.
 - **Automatic policy sync:** assigning menus to a role maintains the matching Casbin policies from linked APIs.
 - **System management:** users, roles, menus, APIs, and runtime settings in one admin panel.
 - **Operation auditing:** operator, module, request, response, result, source IP, and latency with search and cleanup.
@@ -69,7 +70,7 @@ docker compose up -d --build
 
 Open [http://localhost:8080](http://localhost:8080) after startup.
 
-The default administrator account is `admin` / `admin123`. The first startup creates the schema and base permission data automatically. Change the default password and database passwords before production deployment.
+The first startup creates the schema, base permission data, and the super admin `admin`. Its initial password comes from `ADMIN_PASSWORD` in `.env`; if empty, a random one is generated and printed once on first startup (see `docker compose logs server`). Change it right after signing in.
 
 ### Local Development
 
@@ -81,6 +82,7 @@ cd backplane
 
 cp config/config.yaml.example config/config.yaml
 # Update the database and Redis settings in config/config.yaml, and set jwt.secret to the output of openssl rand -hex 32
+# The super admin's initial password comes from seed.admin_password; if empty, a random one is printed on first startup
 # The server refuses to start in any mode if jwt.secret is empty, the old default placeholder, or shorter than 32 bytes
 
 cd web/admin

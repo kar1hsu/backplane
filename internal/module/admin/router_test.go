@@ -1,7 +1,8 @@
 package admin
 
 import (
-	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,31 +12,46 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/kar1hsu/backplane/internal/app"
 	"github.com/kar1hsu/backplane/internal/model"
-	"github.com/kar1hsu/backplane/internal/pkg/errcode"
-	"github.com/kar1hsu/backplane/internal/pkg/response"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-// The login endpoint is unauthenticated, so it must not buffer oversized bodies.
-func TestLoginRejectsOversizedBody(t *testing.T) {
+// Every admin route, including the unauthenticated login, must reject bodies
+// over the limit instead of buffering them. A probe route on the same group
+// inherits the group middleware, so it observes exactly what handlers get.
+func TestAdminRoutesLimitRequestBody(t *testing.T) {
 	setupRouterTestDB(t)
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	New().RegisterRoutes(router.Group("/admin"))
+	group := router.Group("/admin")
+	New().RegisterRoutes(group)
+	group.POST("/probe", func(c *gin.Context) {
+		_, err := io.ReadAll(c.Request.Body)
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			c.Status(http.StatusRequestEntityTooLarge)
+			return
+		}
+		c.Status(http.StatusOK)
+	})
 
-	body := `{"username":"` + strings.Repeat("a", int(maxRequestBodyBytes)) + `","password":"x"}`
-	request := httptest.NewRequest(http.MethodPost, "/admin/login", strings.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-
-	var result response.Response
-	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
-		t.Fatalf("decode response: %v (body %q)", err, recorder.Body.String())
+	tests := []struct {
+		name string
+		size int64
+		want int
+	}{
+		{name: "within limit", size: maxRequestBodyBytes, want: http.StatusOK},
+		{name: "over limit", size: maxRequestBodyBytes + 1, want: http.StatusRequestEntityTooLarge},
 	}
-	if result.Code != errcode.ErrParam || !strings.Contains(result.Message, "too large") {
-		t.Fatalf("response = %+v, want ErrParam about body too large", result)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := strings.NewReader(strings.Repeat("a", int(tt.size)))
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/admin/probe", body))
+			if recorder.Code != tt.want {
+				t.Fatalf("status = %d, want %d", recorder.Code, tt.want)
+			}
+		})
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -23,17 +24,23 @@ const maxBodyCapture = 8 << 10 // 8KB
 // response unwind indefinitely.
 const writeLogTimeout = 3 * time.Second
 
-// sensitiveKeys are redacted (value -> ***) wherever they appear in a captured
-// JSON request or response body.
-var sensitiveKeys = map[string]struct{}{
-	"password":         {},
-	"old_password":     {},
-	"new_password":     {},
-	"confirm_password": {},
-	"token":            {},
-	"secret":           {},
-	"access_token":     {},
-	"refresh_token":    {},
+// sensitiveKeyParts: a key is redacted (value -> ***) in captured query
+// strings and JSON / form bodies when its lowercased name contains any of
+// these, covering password, old_password, access_token, client_secret, ...
+var sensitiveKeyParts = []string{"password", "passwd", "secret", "token", "authorization", "api_key", "apikey"}
+
+// omittedBody replaces a body that cannot be parsed for redaction (not JSON, or
+// cut off at maxBodyCapture). Storing it raw could leak the secrets inside.
+const omittedBody = "[内容无法解析或超过 8KB，已省略]"
+
+func isSensitiveKey(key string) bool {
+	key = strings.ToLower(key)
+	for _, part := range sensitiveKeyParts {
+		if strings.Contains(key, part) {
+			return true
+		}
+	}
+	return false
 }
 
 type apiMeta struct {
@@ -156,13 +163,13 @@ func captureRequest(c *gin.Context) string {
 		if strings.Contains(ct, "application/json") {
 			bodyStr = redactJSON(buf)
 		} else {
-			bodyStr = string(buf)
+			bodyStr = redactForm(string(buf))
 		}
 	}
 
 	out := make(map[string]string, 2)
 	if q := c.Request.URL.RawQuery; q != "" {
-		out["query"] = q
+		out["query"] = redactForm(q)
 	}
 	if bodyStr != "" {
 		out["body"] = bodyStr
@@ -190,29 +197,43 @@ func captureResponse(respBody []byte) string {
 	return string(b)
 }
 
-// redactJSON masks sensitive keys in a JSON object. On parse failure it returns
-// the raw bytes as-is (already capped by the caller).
+// redactJSON masks sensitive keys in a JSON document. A body that does not
+// parse — including JSON cut off at maxBodyCapture — is omitted, not stored raw.
 func redactJSON(raw []byte) string {
 	if len(raw) == 0 {
 		return ""
 	}
 	var v interface{}
 	if err := json.Unmarshal(raw, &v); err != nil {
-		return string(raw)
+		return omittedBody
 	}
 	redactValue(v)
 	b, err := json.Marshal(v)
 	if err != nil {
-		return string(raw)
+		return omittedBody
 	}
 	return string(b)
+}
+
+// redactForm masks sensitive keys in a query string or urlencoded body.
+func redactForm(raw string) string {
+	values, err := url.ParseQuery(raw)
+	if err != nil {
+		return omittedBody
+	}
+	for k := range values {
+		if isSensitiveKey(k) {
+			values[k] = []string{"***"}
+		}
+	}
+	return values.Encode()
 }
 
 func redactValue(v interface{}) {
 	switch t := v.(type) {
 	case map[string]interface{}:
 		for k := range t {
-			if _, ok := sensitiveKeys[strings.ToLower(k)]; ok {
+			if isSensitiveKey(k) {
 				t[k] = "***"
 			} else {
 				redactValue(t[k])

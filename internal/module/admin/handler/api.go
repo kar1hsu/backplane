@@ -24,8 +24,8 @@ func (h *APIHandler) Create(c *gin.Context) {
 		response.Fail(c, errcode.ErrParam, "参数错误: "+err.Error())
 		return
 	}
-	if err := h.svc.Create(c.Request.Context(), &req); err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+	if err := h.svc.Create(c.Request.Context(), operatorFrom(c), &req); err != nil {
+		failWith(c, err)
 		return
 	}
 	response.OK(c, nil)
@@ -56,8 +56,8 @@ func (h *APIHandler) Update(c *gin.Context) {
 		response.Fail(c, errcode.ErrParam, "参数错误: "+err.Error())
 		return
 	}
-	if err := h.svc.Update(c.Request.Context(), uint(id), &req); err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+	if err := h.svc.Update(c.Request.Context(), operatorFrom(c), uint(id), &req); err != nil {
+		failWith(c, err)
 		return
 	}
 	response.OK(c, nil)
@@ -69,8 +69,8 @@ func (h *APIHandler) Delete(c *gin.Context) {
 		response.Fail(c, errcode.ErrParam, "参数错误")
 		return
 	}
-	if err := h.svc.Delete(c.Request.Context(), uint(id)); err != nil {
-		response.Fail(c, errcode.ErrServer, err.Error())
+	if err := h.svc.Delete(c.Request.Context(), operatorFrom(c), uint(id)); err != nil {
+		failWith(c, err)
 		return
 	}
 	response.OK(c, nil)

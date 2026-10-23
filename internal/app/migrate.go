@@ -1,10 +1,19 @@
 package app
 
 import (
+	"fmt"
+	"io"
+	"os"
+
 	"github.com/kar1hsu/backplane/internal/model"
 	"github.com/kar1hsu/backplane/internal/pkg/utils"
 	"gorm.io/gorm"
 )
+
+// seedPasswordOutput receives the one-time banner with a generated admin
+// password. It is stdout rather than the app log so the password does not end
+// up in rotated log files. Tests swap it out.
+var seedPasswordOutput io.Writer = os.Stdout
 
 // AutoMigrate creates or updates the schema for every model.
 func AutoMigrate() error {
@@ -35,6 +44,15 @@ func SeedData() error {
 
 	Log.Info("seeding initial data...")
 
+	adminPassword := Cfg.Seed.AdminPassword
+	generated := adminPassword == ""
+	if generated {
+		var err error
+		if adminPassword, err = utils.RandomPassword(16); err != nil {
+			return fmt.Errorf("generate admin password: %w", err)
+		}
+	}
+
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		apis := defaultAPIs()
 		for i := range apis {
@@ -54,7 +72,7 @@ func SeedData() error {
 			return err
 		}
 
-		hashed, err := utils.HashPassword("admin123")
+		hashed, err := utils.HashPassword(adminPassword)
 		if err != nil {
 			return err
 		}
@@ -85,7 +103,16 @@ func SeedData() error {
 		return err
 	}
 
-	Log.Warn("已创建默认管理员 admin/admin123，请登录后立即修改密码")
+	if generated {
+		_, _ = fmt.Fprintf(seedPasswordOutput,
+			"\n========================================\n"+
+				"已创建超级管理员 admin，初始密码：%s\n"+
+				"仅显示这一次，请登录后立即修改。\n"+
+				"========================================\n\n", adminPassword)
+		Log.Warn("已创建超级管理员 admin，随机初始密码已打印到标准输出，请登录后立即修改")
+	} else {
+		Log.Warn("已创建超级管理员 admin（密码来自 seed.admin_password），请登录后立即修改")
+	}
 	Log.Info("seed data completed")
 	return nil
 }

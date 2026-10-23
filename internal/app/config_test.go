@@ -61,6 +61,18 @@ func TestValidateConfigTrustedProxies(t *testing.T) {
 	}
 }
 
+func TestValidateConfigSeedAdminPassword(t *testing.T) {
+	setValidConfig(t)
+	Cfg.Seed.AdminPassword = "short"
+	if err := validateConfig(); err == nil {
+		t.Fatal("validateConfig() accepted a too-short seed.admin_password")
+	}
+	Cfg.Seed.AdminPassword = "long-enough"
+	if err := validateConfig(); err != nil {
+		t.Fatalf("validateConfig() error = %v", err)
+	}
+}
+
 func setValidConfig(t *testing.T) {
 	t.Helper()
 

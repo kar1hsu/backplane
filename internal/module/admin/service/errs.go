@@ -15,3 +15,17 @@ func notFoundOr(err error, notFoundMsg string) error {
 	}
 	return err
 }
+
+// forbiddenError marks an action the operator is not allowed to perform, so
+// handlers can answer with errcode.ErrForbidden rather than a server error.
+type forbiddenError struct{ msg string }
+
+func (e *forbiddenError) Error() string { return e.msg }
+
+func forbidden(msg string) error { return &forbiddenError{msg: msg} }
+
+// IsForbidden reports whether err is a permission rule violation.
+func IsForbidden(err error) bool {
+	var f *forbiddenError
+	return errors.As(err, &f)
+}

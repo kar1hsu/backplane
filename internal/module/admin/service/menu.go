@@ -48,7 +48,16 @@ type UpdateMenuRequest struct {
 	APIIDs     *[]uint `json:"api_ids"`
 }
 
-func (s *MenuService) Create(ctx context.Context, req *CreateMenuRequest) error {
+// Binding APIs to a menu decides which endpoints every role holding the menu
+// may call, so only a super admin may set or change a menu's api_ids.
+const menuAPIsForbiddenMsg = "只有超级管理员可以配置菜单关联的 API"
+
+func (s *MenuService) Create(ctx context.Context, op Operator, req *CreateMenuRequest) error {
+	if len(req.APIIDs) > 0 {
+		if err := requireSuperAdmin(op, menuAPIsForbiddenMsg); err != nil {
+			return err
+		}
+	}
 	menu := &model.SysMenu{
 		ParentID:   req.ParentID,
 		Name:       req.Name,
@@ -76,10 +85,21 @@ func (s *MenuService) GetByID(ctx context.Context, id uint) (*model.SysMenu, err
 	return s.menuRepo.GetByID(ctx, id)
 }
 
-func (s *MenuService) Update(ctx context.Context, id uint, req *UpdateMenuRequest) error {
+func (s *MenuService) Update(ctx context.Context, op Operator, id uint, req *UpdateMenuRequest) error {
 	menu, err := s.menuRepo.GetByID(ctx, id)
 	if err != nil {
 		return notFoundOr(err, "菜单不存在")
+	}
+	if req.APIIDs != nil {
+		currentIDs := make([]uint, 0, len(menu.APIs))
+		for _, a := range menu.APIs {
+			currentIDs = append(currentIDs, a.ID)
+		}
+		if !sameIDs(currentIDs, *req.APIIDs) {
+			if err := requireSuperAdmin(op, menuAPIsForbiddenMsg); err != nil {
+				return err
+			}
+		}
 	}
 
 	if req.ParentID != nil {
@@ -143,7 +163,7 @@ func (s *MenuService) GetUserMenuTree(ctx context.Context, userID uint) ([]*mode
 	}
 
 	menuIDSet := make(map[uint]bool)
-	for _, role := range user.Roles {
+	for _, role := range enabledRoles(user.Roles) {
 		menus, err := s.roleRepo.GetMenusByRoleID(ctx, role.ID)
 		if err != nil {
 			continue
@@ -186,15 +206,15 @@ func (s *MenuService) GetUserPermissions(ctx context.Context, userID uint) ([]st
 		return nil, notFoundOr(err, "用户不存在")
 	}
 
+	roles := enabledRoles(user.Roles)
+
 	// Super admin has all permissions
-	for _, role := range user.Roles {
-		if role.Code == model.SuperAdminRoleCode {
-			return []string{"*"}, nil
-		}
+	if hasSuperAdminRole(roles) {
+		return []string{"*"}, nil
 	}
 
 	menuIDSet := make(map[uint]bool)
-	for _, role := range user.Roles {
+	for _, role := range roles {
 		menus, err := s.roleRepo.GetMenusByRoleID(ctx, role.ID)
 		if err != nil {
 			continue
@@ -225,4 +245,15 @@ func (s *MenuService) GetUserPermissions(ctx context.Context, userID uint) ([]st
 		}
 	}
 	return perms, nil
+}
+
+// enabledRoles drops disabled roles, matching what AdminAuth enforces.
+func enabledRoles(roles []model.SysRole) []model.SysRole {
+	out := make([]model.SysRole, 0, len(roles))
+	for _, r := range roles {
+		if r.Status == 1 {
+			out = append(out, r)
+		}
+	}
+	return out
 }

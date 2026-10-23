@@ -22,7 +22,8 @@ func NewAuthHandler() *AuthHandler {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req service.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Fail(c, errcode.ErrParam, "参数错误: "+err.Error())
+		// Public endpoint: do not echo validator internals back to the client.
+		response.Fail(c, errcode.ErrParam, "请输入有效的用户名和密码")
 		return
 	}
 
